@@ -50,3 +50,6 @@ CREATE TABLE IF NOT EXISTS world_objects (
   created_at INTEGER NOT NULL,
   removed_at INTEGER
 );
+-- Colunas adicionadas via migração manual em 11/07/2026
+-- ALTER TABLE agent_state ADD COLUMN tokens_used_today INTEGER NOT NULL DEFAULT 0;
+-- ALTER TABLE agent_state ADD COLUMN tokens_date TEXT;

@@ -22,16 +22,32 @@ export function initWebSocketServer(port: number) {
   console.log(`[ws] servidor WebSocket ouvindo na porta ${port}`);
 }
 
+function getLastSpeeches() {
+  const rows = db.prepare(
+    `SELECT agent_id, content, created_at FROM events WHERE type = 'speech' ORDER BY created_at DESC LIMIT 20`
+  ).all() as { agent_id: string; content: string; created_at: number }[];
+
+  const lastByAgent: Record<string, { text: string; createdAt: number }> = {};
+  for (const row of rows) {
+    if (!lastByAgent[row.agent_id]) {
+      lastByAgent[row.agent_id] = { text: row.content, createdAt: row.created_at };
+    }
+  }
+  return lastByAgent;
+}
+
 function getFullState() {
   const agents = db.prepare(`SELECT * FROM agents`).all();
   const states = db.prepare(`SELECT * FROM agent_state`).all();
   const objects = db.prepare(`SELECT * FROM world_objects WHERE removed_at IS NULL`).all();
+  const lastSpeeches = getLastSpeeches();
 
   return {
     type: 'full_state',
     agents,
     states,
     objects,
+    lastSpeeches,
   };
 }
 

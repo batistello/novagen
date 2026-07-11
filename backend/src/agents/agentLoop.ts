@@ -5,7 +5,8 @@ import { parseAgentResponse, AgentResponse } from './actionSchema';
 import { recordEvent, getRecentMemoryFor } from './memory';
 import { callGroq } from '../llm/groqClient';
 import { callGemini } from '../llm/geminiClient';
-import { broadcastEvent } from '../ws/server';
+import { broadcastEvent, broadcastFullState } from '../ws/server';
+import { getTokenBudgetStatus, recordTokenUsage } from './tokenBudget';
 
 type LLMProvider = 'groq' | 'gemini';
 
@@ -76,6 +77,41 @@ function persistAgentResponse(agentId: string, response: AgentResponse) {
       `INSERT INTO world_objects (created_by, type, x, y, color, label, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
     ).run(agentId, response.action.shape, response.action.x, response.action.y, response.action.color ?? null, response.action.label ?? null, Date.now());
   }
+
+  if (response.action.type === 'draw') {
+    const points = response.action.points;
+    const avgX = points.reduce((sum, p) => sum + p.x, 0) / points.length;
+    const avgY = points.reduce((sum, p) => sum + p.y, 0) / points.length;
+    db.prepare(
+      `INSERT INTO world_objects (created_by, type, x, y, color, metadata, created_at) VALUES (?, 'drawing', ?, ?, ?, ?, ?)`
+    ).run(agentId, avgX, avgY, response.action.color ?? null, JSON.stringify({ points }), Date.now());
+  }
+
+  if (response.action.type === 'write') {
+    db.prepare(
+      `INSERT INTO world_objects (created_by, type, x, y, label, created_at) VALUES (?, 'text', ?, ?, ?, ?)`
+    ).run(agentId, response.action.x, response.action.y, response.action.text, Date.now());
+  }
+
+  if (response.action.type === 'remove_object') {
+    db.prepare(`UPDATE world_objects SET removed_at = ? WHERE id = ?`)
+      .run(Date.now(), response.action.objectId);
+  }
+
+  if (response.action.type === 'move_object') {
+    db.prepare(`UPDATE world_objects SET x = ?, y = ? WHERE id = ?`)
+      .run(response.action.x, response.action.y, response.action.objectId);
+  }
+
+  if (response.action.type === 'color_object') {
+    db.prepare(`UPDATE world_objects SET color = ? WHERE id = ?`)
+      .run(response.action.color, response.action.objectId);
+  }
+
+  if (response.action.type === 'rename_object') {
+    db.prepare(`UPDATE world_objects SET label = ? WHERE id = ?`)
+      .run(response.action.newLabel, response.action.objectId);
+  }
 }
 
 export async function tickAgent(agentId: string) {
@@ -87,9 +123,48 @@ export async function tickAgent(agentId: string) {
     return { skipped: true, tier: tier.name };
   }
 
+  const budget = getTokenBudgetStatus(agentId);
+  if (budget.ratio >= 0.98) {
+    console.log(`[${AGENT_NAMES[agentId]}] orçamento diário quase esgotado (${(budget.ratio * 100).toFixed(0)}%), pulando ciclo.`);
+    return { skipped: true, tier: tier.name };
+  }
+
+  let maxTokens = 800;
+  let budgetNote = '';
+  if (budget.ratio >= 0.85) {
+    maxTokens = 150;
+    budgetNote = 'Sua energia mental está quase esgotada por hoje. Fale muito pouco, apenas o essencial, em frases curtas.';
+  } else if (budget.ratio >= 0.65) {
+    maxTokens = 300;
+    budgetNote = 'Você sente que sua capacidade de articular pensamentos está diminuindo hoje. Seja mais conciso do que o normal.';
+  } else if (budget.ratio >= 0.40) {
+    maxTokens = 500;
+    budgetNote = 'Você percebe que precisa moderar o quanto fala hoje, sem saber exatamente por quê.';
+  }
+
   const state = loadState(agentId);
   const traits = loadTraits(agentId);
   const recentMemory = getRecentMemoryFor(agentId, 15);
+
+  const otherAgentId = agentId === 'blue' ? 'red' : 'blue';
+  const otherState = loadState(otherAgentId);
+  const otherName = AGENT_NAMES[otherAgentId];
+
+  const existingObjects = db.prepare(
+    `SELECT id, type, x, y, color, label FROM world_objects WHERE removed_at IS NULL ORDER BY created_at DESC LIMIT 20`
+  ).all() as { id: number; type: string; x: number; y: number; color: string | null; label: string | null }[];
+
+  const objectsText = existingObjects.length > 0
+    ? existingObjects.map(o => `  - id ${o.id}: ${o.type} em (${o.x.toFixed(0)}, ${o.y.toFixed(0)})${o.label ? `, rotulado "${o.label}"` : ''}${o.color ? `, cor ${o.color}` : ''}`).join('\n')
+    : '  (nenhum objeto existe no mundo ainda)';
+
+  const worldSummary = `O mundo é um quadrado. Eixo X: negativo = oeste, positivo = leste. Eixo Y: negativo = norte, positivo = sul. O centro é (0,0).
+Sua posição atual: (${state.x.toFixed(0)}, ${state.y.toFixed(0)}).
+Posição de ${otherName}: (${otherState.x.toFixed(0)}, ${otherState.y.toFixed(0)}).
+Distância até ${otherName}: ${Math.round(Math.sqrt((state.x - otherState.x) ** 2 + (state.y - otherState.y) ** 2))} unidades.
+Objetos existentes no mundo (use o "id" exato para remover, mover, colorir ou renomear um objeto):
+${objectsText}
+${budgetNote}`;
 
   const ctx: AgentContext = {
     identity: { id: agentId, name: AGENT_NAMES[agentId], color: AGENT_COLORS[agentId] },
@@ -98,7 +173,7 @@ export async function tickAgent(agentId: string) {
     tier,
     emotion: state.emotion,
     recentMemory,
-    worldSummary: `Você está na posição (${state.x}, ${state.y}).`,
+    worldSummary,
   };
 
   const systemPrompt = buildSystemPrompt(ctx);
@@ -106,8 +181,8 @@ export async function tickAgent(agentId: string) {
 
   const provider = AGENT_PROVIDER[agentId];
   const llmResult = provider === 'groq'
-    ? await callGroq(systemPrompt, userPrompt)
-    : await callGemini(systemPrompt, userPrompt);
+    ? await callGroq(systemPrompt, userPrompt, maxTokens)
+    : await callGemini(systemPrompt, userPrompt, maxTokens);
 
   const response = parseAgentResponse(llmResult.raw);
 
@@ -120,7 +195,13 @@ export async function tickAgent(agentId: string) {
     emotion: response.emotion,
     action: response.action,
   });
+
+  const worldAffectingActions = ['create_object', 'draw', 'write', 'remove_object', 'move_object', 'color_object', 'rename_object'];
+  if (worldAffectingActions.includes(response.action.type)) {
+    broadcastFullState();
+  }
   const newEnergy = spendEnergy(agentId, llmResult.totalTokens);
+  recordTokenUsage(agentId, llmResult.totalTokens);
 
   const speechDisplay = response.speech ? `"${response.speech}"` : '(silêncio)';
   console.log(`[${AGENT_NAMES[agentId]}] (${tier.name}, energia ${newEnergy.toFixed(1)}%) fala: ${speechDisplay} | ação: ${response.action.type}`);

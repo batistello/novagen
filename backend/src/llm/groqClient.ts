@@ -10,7 +10,7 @@ export interface LLMResult {
   totalTokens: number;
 }
 
-export async function callGroq(systemPrompt: string, userPrompt: string): Promise<LLMResult> {
+export async function callGroq(systemPrompt: string, userPrompt: string, maxTokens: number = 800): Promise<LLMResult> {
   if (!GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY não configurada no .env');
   }
@@ -28,7 +28,7 @@ export async function callGroq(systemPrompt: string, userPrompt: string): Promis
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.9,
-      max_tokens: 800,
+      max_tokens: maxTokens,
       reasoning_effort: 'low',
       response_format: { type: 'json_object' },
     }),

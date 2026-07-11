@@ -10,7 +10,7 @@ export interface LLMResult {
   totalTokens: number;
 }
 
-export async function callGemini(systemPrompt: string, userPrompt: string): Promise<LLMResult> {
+export async function callGemini(systemPrompt: string, userPrompt: string, maxTokens: number = 400): Promise<LLMResult> {
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY não configurada no .env');
   }
@@ -23,7 +23,7 @@ export async function callGemini(systemPrompt: string, userPrompt: string): Prom
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
       generationConfig: {
         temperature: 0.9,
-        maxOutputTokens: 400,
+        maxOutputTokens: maxTokens,
         responseMimeType: 'application/json',
       },
     }),

@@ -11,16 +11,37 @@ function loadEnergy(agentId: string): number {
   return row.energy;
 }
 
+let tickQueue: Promise<void> = Promise.resolve();
+
+function randomDelay(minMs: number, maxMs: number): number {
+  return minMs + Math.random() * (maxMs - minMs);
+}
+
+async function runTickSequentially(agentId: string) {
+  const previousQueue = tickQueue;
+  let releaseNext: () => void;
+  tickQueue = new Promise(resolve => { releaseNext = resolve; });
+
+  await previousQueue.catch(() => {});
+
+  try {
+    await tickAgent(agentId);
+  } finally {
+    const delay = randomDelay(2000, 4000);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    releaseNext!();
+  }
+}
+
 async function scheduleNextTick(agentId: string) {
   try {
-    const result = await tickAgent(agentId);
+    await runTickSequentially(agentId);
     const energy = loadEnergy(agentId);
     const tier = getTier(energy);
     console.log(`[runner] ${agentId} próximo tick em ${tier.tickIntervalMs / 1000}s (tier: ${tier.name})`);
     setTimeout(() => scheduleNextTick(agentId), tier.tickIntervalMs);
   } catch (err) {
     console.error(`[runner] erro no tick de ${agentId}:`, err);
-    // em caso de erro (ex: falha de rede na API), tenta de novo em 30s
     setTimeout(() => scheduleNextTick(agentId), 30_000);
   }
 }
