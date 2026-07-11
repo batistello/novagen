@@ -5,6 +5,7 @@ import { parseAgentResponse, AgentResponse } from './actionSchema';
 import { recordEvent, getRecentMemoryFor } from './memory';
 import { callGroq } from '../llm/groqClient';
 import { callGemini } from '../llm/geminiClient';
+import { broadcastEvent } from '../ws/server';
 
 type LLMProvider = 'groq' | 'gemini';
 
@@ -111,6 +112,14 @@ export async function tickAgent(agentId: string) {
   const response = parseAgentResponse(llmResult.raw);
 
   persistAgentResponse(agentId, response);
+  broadcastEvent({
+    type: 'agent_tick',
+    agentId,
+    speech: response.speech,
+    thought: response.thought,
+    emotion: response.emotion,
+    action: response.action,
+  });
   const newEnergy = spendEnergy(agentId, llmResult.totalTokens);
 
   const speechDisplay = response.speech ? `"${response.speech}"` : '(silêncio)';

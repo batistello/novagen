@@ -2,6 +2,7 @@ import { initSchema } from './db';
 import { tickAgent } from './agents/agentLoop';
 import { getTier } from './agents/energyConfig';
 import { db } from './db';
+import { initWebSocketServer } from './ws/server';
 
 const AGENT_IDS = ['blue', 'red'];
 
@@ -26,6 +27,8 @@ async function scheduleNextTick(agentId: string) {
 
 function start() {
   initSchema();
+  const wsPort = Number(process.env.WS_PORT) || 4001;
+  initWebSocketServer(wsPort);
   console.log('[runner] Artificial Genesis iniciando...');
   AGENT_IDS.forEach(agentId => {
     scheduleNextTick(agentId);
