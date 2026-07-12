@@ -57,7 +57,7 @@ export function parseAgentResponse(raw: unknown): AgentResponse {
 }
 
 export const PlanStepsSchema = z.object({
-  steps: z.array(AgentResponseSchema).min(3).max(8),
+  steps: z.array(AgentResponseSchema).min(6).max(10),
 });
 
 export type PlanSteps = z.infer<typeof PlanStepsSchema>;

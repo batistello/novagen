@@ -4,12 +4,36 @@
 <meta charset="UTF-8">
 <title>Artificial Genesis</title>
 <style>
-  body { margin: 0; background: #0a0a0a; display: flex; justify-content: center; align-items: center; height: 100vh; }
+  body { margin: 0; background: #0a0a0a; display: flex; justify-content: center; align-items: flex-start; height: 100vh; gap: 12px; padding-top: 20px; font-family: Arial, sans-serif; }
   canvas { border: 1px solid #333; }
+  #log-panel {
+    width: 320px;
+    height: 600px;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #ddd;
+    font-size: 12px;
+    overflow-y: auto;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  #log-panel .entry { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #222; }
+  #log-panel .entry .who { font-weight: bold; }
+  #log-panel .entry.blue .who { color: #3498db; }
+  #log-panel .entry.red .who { color: #e74c3c; }
+  #log-panel .entry .time { color: #666; font-size: 10px; float: right; }
+  #log-panel .entry .thought { color: #888; font-style: italic; font-size: 11px; margin-top: 2px; }
+  #log-panel .status { color: #4caf50; font-size: 11px; margin-bottom: 8px; }
+  #log-panel .status.disconnected { color: #e74c3c; }
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="log-panel">
+  <div id="log-status" class="status">conectando...</div>
+  <div id="log-entries"></div>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.4.0/pixi.min.js"></script>
 <script src="main.js"></script>
 </body>

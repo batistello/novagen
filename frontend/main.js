@@ -257,6 +257,8 @@ function showSpeechBubble(agentId, text) {
   }, 9000);
 }
 
+let hasBackfilledLog = false;
+
 function applyFullState(msg) {
   msg.agents.forEach(agent => {
     createAgentSprite(agent.id, hexToNumber(agent.color));
@@ -272,16 +274,55 @@ function applyFullState(msg) {
       if (ageMs < 20 * 60 * 1000) {
         showSpeechBubble(agentId, data.text);
       }
+      if (!hasBackfilledLog) { addLogEntry(agentId, data.text, null); }
     });
   }
+    hasBackfilledLog = true;
+}
+
+const AGENT_NAMES = { blue: 'Azul', red: 'Vermelho' };
+
+function addLogEntry(agentId, speech, thought) {
+  const container = document.getElementById('log-entries');
+  if (!container) return;
+
+  const entry = document.createElement('div');
+  entry.className = 'entry ' + agentId;
+
+  const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const name = AGENT_NAMES[agentId] || agentId;
+
+  let html = '<span class="who">' + name + '</span><span class="time">' + time + '</span>';
+  if (speech) html += '<div class="speech">' + speech + '</div>';
+  if (thought) html += '<div class="thought">' + thought + '</div>';
+  entry.innerHTML = html;
+
+  container.appendChild(entry);
+  while (container.children.length > 60) {
+    container.removeChild(container.firstChild);
+  }
+
+  const panel = document.getElementById('log-panel');
+  if (panel) panel.scrollTop = panel.scrollHeight;
+}
+
+function setLogStatus(text, connected) {
+  const status = document.getElementById('log-status');
+  if (!status) return;
+  status.textContent = text;
+  status.className = connected ? 'status' : 'status disconnected';
 }
 
 function connect() {
   const ws = new WebSocket(WS_URL);
 
-  ws.onopen = () => console.log('[ws] conectado');
+  ws.onopen = () => {
+    console.log('[ws] conectado');
+    setLogStatus('conectado, ao vivo', true);
+  };
   ws.onclose = () => {
     console.log('[ws] desconectado, tentando reconectar em 3s...');
+    setLogStatus('desconectado, tentando reconectar...', false);
     setTimeout(connect, 3000);
   };
   ws.onerror = (err) => console.error('[ws] erro:', err);
@@ -327,6 +368,9 @@ function connect() {
 
       if (msg.speech) {
         showSpeechBubble(msg.agentId, msg.speech);
+      }
+      if (msg.speech || msg.thought) {
+        addLogEntry(msg.agentId, msg.speech, msg.thought);
       }
     }
   };

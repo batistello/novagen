@@ -227,7 +227,7 @@ export async function planAgent(agentId: string) {
     return { planned: false, tier: tier.name };
   }
 
-  let maxTokens = 1600;
+  let maxTokens = 1100;
   let budgetNote = '';
   if (budget.ratio >= 0.85) {
     maxTokens = 400;

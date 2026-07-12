@@ -39,7 +39,8 @@ async function bodyCycle(agentId: string) {
         const state = loadAgentState(agentId);
         const tier = getTier(state.energy);
         const elapsed = Date.now() - state.last_tick_at;
-        if (tier.callsLLM && elapsed >= tier.tickIntervalMs) {
+        const planIntervalMs = Math.max(tier.tickIntervalMs * 6, 120_000);
+        if (tier.callsLLM && elapsed >= planIntervalMs) {
           const planResult = await planAgent(agentId);
           if (planResult.planned) {
             executeNextStep(agentId);
