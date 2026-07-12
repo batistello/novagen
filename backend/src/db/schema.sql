@@ -62,3 +62,22 @@ CREATE TABLE IF NOT EXISTS agent_plan_steps (
   executed INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS agent_intentions (
+  agent_id TEXT PRIMARY KEY,
+  goal_type TEXT NOT NULL,
+  target_agent_id TEXT,
+  target_x REAL,
+  target_y REAL,
+  wander_x REAL,
+  wander_y REAL,
+  priority TEXT,
+  interrupt_on_speech INTEGER NOT NULL DEFAULT 0,
+  interrupt_on_proximity REAL,
+  raw_speech TEXT,
+  raw_thought TEXT,
+  emotion TEXT,
+  started_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active'
+);

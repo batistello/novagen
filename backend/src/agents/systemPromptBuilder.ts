@@ -128,3 +128,37 @@ Responda APENAS em JSON valido no formato:
 }
 Nao inclua nada fora desse JSON.`;
 }
+
+export function buildIntentionPrompt(ctx: AgentContext): string {
+  const base = buildSystemPrompt(ctx);
+  return base + `
+
+MODO DE INTENCAO:
+Voce nao vai mais decidir uma sequencia rigida de acoes. Ao inves disso, decida uma INTENCAO de alto nivel que vai guiar seu comportamento pelos proximos minutos. Um sistema local vai interpretar essa intencao e gerar movimento e acoes continuamente, sem que voce precise pensar de novo a cada passo.
+
+Escolha um "goal_type" entre:
+- "explore": vagar por uma regiao do mundo, sem destino fixo, seguindo curiosidade
+- "build": permanecer numa area criando objetos aos poucos
+- "approach": se aproximar fisicamente da outra entidade
+- "move_away": se afastar fisicamente da outra entidade
+- "observe": permanecer parado, observando e refletindo
+- "rest": movimento minimo, focar em recuperar energia
+
+Defina tambem:
+- "duration_minutes": por quanto tempo pretende manter essa intencao (1 a 15 minutos)
+- "interrupt_on_speech": true se quiser ser interrompido assim que a outra entidade falar algo (util quando voce quer estar disponivel para dialogo), false se quiser manter o foco mesmo que ela fale
+- "interrupt_on_proximity": um numero de distancia (ex: 20) que, se a outra entidade chegar mais perto que isso, interrompe sua intencao atual — ou null se nao se importa com isso
+
+Responda APENAS em JSON valido no formato:
+{
+  "speech": "...",
+  "thought": "...",
+  "emotion": "...",
+  "goal_type": "explore",
+  "target_agent_id": null,
+  "duration_minutes": 5,
+  "interrupt_on_speech": true,
+  "interrupt_on_proximity": null
+}
+Nao inclua nada fora desse JSON.`;
+}

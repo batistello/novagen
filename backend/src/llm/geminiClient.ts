@@ -10,12 +10,13 @@ export interface LLMResult {
   totalTokens: number;
 }
 
-export async function callGemini(systemPrompt: string, userPrompt: string, maxTokens: number = 400): Promise<LLMResult> {
-  if (!GEMINI_API_KEY) {
+export async function callGemini(systemPrompt: string, userPrompt: string, maxTokens: number = 400, apiKeyOverride?: string): Promise<LLMResult> {
+  const activeKey = apiKeyOverride || GEMINI_API_KEY;
+  if (!activeKey) {
     throw new Error('GEMINI_API_KEY não configurada no .env');
   }
 
-  const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(`${GEMINI_URL}?key=${activeKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

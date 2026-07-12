@@ -70,3 +70,33 @@ export function parsePlanSteps(raw: unknown): PlanSteps {
   console.error('[actionSchema] Plano invalido do LLM, usando fallback:', result.error.message);
   return FALLBACK_PLAN;
 }
+
+export const IntentionSchema = z.object({
+  speech: z.string().nullable(),
+  thought: z.string(),
+  emotion: z.string(),
+  goal_type: z.enum(['explore', 'build', 'approach', 'move_away', 'observe', 'rest']),
+  target_agent_id: z.string().nullable().optional(),
+  duration_minutes: z.number().min(1).max(15),
+  interrupt_on_speech: z.boolean(),
+  interrupt_on_proximity: z.number().nullable().optional(),
+});
+
+export type Intention = z.infer<typeof IntentionSchema>;
+
+export const FALLBACK_INTENTION: Intention = {
+  speech: null,
+  thought: 'Confuso, preciso de um instante para decidir o que fazer.',
+  emotion: 'confusion',
+  goal_type: 'observe',
+  duration_minutes: 2,
+  interrupt_on_speech: true,
+  interrupt_on_proximity: null,
+};
+
+export function parseIntention(raw: unknown): Intention {
+  const result = IntentionSchema.safeParse(raw);
+  if (result.success) return result.data;
+  console.error('[actionSchema] Intencao invalida do LLM, usando fallback:', result.error.message);
+  return FALLBACK_INTENTION;
+}

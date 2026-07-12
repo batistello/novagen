@@ -36,7 +36,10 @@ function createAgentSprite(agentId, color) {
   return circle;
 }
 
+const lastRealUpdate = {};
+
 function updateAgentPosition(agentId, x, y) {
+  lastRealUpdate[agentId] = Date.now();
   const sprite = agentSprites[agentId];
   if (!sprite) return;
 
@@ -200,13 +203,7 @@ function renderWorldObjects(objects) {
       shape.y = sy;
       worldLayer.addChild(shape);
 
-      if (obj.label) {
-        const label = new PIXI.Text(obj.label, { fontFamily: 'Arial', fontSize: 8, fill: 0x555555 });
-        label.anchor.set(0.5, 0);
-        label.x = sx;
-        label.y = sy + size + 2;
-        worldLayer.addChild(label);
-      }
+      // labels ocultos por padrao para reduzir poluicao visual (Fase 1)
     } catch (err) {
       console.error('[renderWorldObjects] falha ao desenhar objeto', obj, err);
     }
@@ -223,23 +220,32 @@ function showSpeechBubble(agentId, text) {
 
   const container = new PIXI.Container();
 
-  const label = new PIXI.Text(text, {
+  const label = new PIXI.Text('', {
     fontFamily: 'Arial', fontSize: 11, fill: 0x000000,
     wordWrap: true, wordWrapWidth: 140, align: 'center',
   });
   label.anchor.set(0.5, 0.5);
 
+  const measurer = new PIXI.Text(text, {
+    fontFamily: 'Arial', fontSize: 11, fill: 0x000000,
+    wordWrap: true, wordWrapWidth: 140, align: 'center',
+  });
+  const finalWidth = measurer.width;
+  const finalHeight = measurer.height;
+  measurer.destroy();
+
   const padding = 8;
+  const bubbleWidth = finalWidth + padding * 2;
+  const bubbleHeight = finalHeight + padding * 2;
+
   const bg = new PIXI.Graphics();
   bg.beginFill(0xffffff, 0.95).lineStyle(1, 0x000000)
-    .drawRoundedRect(-label.width / 2 - padding, -label.height / 2 - padding, label.width + padding * 2, label.height + padding * 2, 6)
+    .drawRoundedRect(-bubbleWidth / 2, -bubbleHeight / 2, bubbleWidth, bubbleHeight, 6)
     .endFill();
 
   container.addChild(bg);
   container.addChild(label);
 
-  const bubbleHeight = label.height + padding * 2;
-  const bubbleWidth = label.width + padding * 2;
   const horizontalOffset = agentId === 'blue' ? -bubbleWidth / 2 - 10 : bubbleWidth / 2 + 10;
   let targetX = sprite.x + horizontalOffset;
   targetX = Math.max(bubbleWidth / 2 + 5, Math.min(WORLD_SIZE - bubbleWidth / 2 - 5, targetX));
@@ -249,14 +255,28 @@ function showSpeechBubble(agentId, text) {
   bubbleLayer.addChild(container);
   speechBubbles[agentId] = container;
 
+  let charIndex = 0;
+  const charsPerTick = 2;
+  const typeInterval = setInterval(() => {
+    if (speechBubbles[agentId] !== container) {
+      clearInterval(typeInterval);
+      return;
+    }
+    charIndex += charsPerTick;
+    label.text = text.slice(0, charIndex);
+    if (charIndex >= text.length) {
+      clearInterval(typeInterval);
+    }
+  }, 35);
+
   setTimeout(() => {
     if (speechBubbles[agentId] === container) {
+      clearInterval(typeInterval);
       bubbleLayer.removeChild(container);
       delete speechBubbles[agentId];
     }
-  }, 9000);
+  }, Math.max(9000, text.length * 60));
 }
-
 let hasBackfilledLog = false;
 
 function applyFullState(msg) {
@@ -313,7 +333,43 @@ function setLogStatus(text, connected) {
   status.className = connected ? 'status' : 'status disconnected';
 }
 
+const WANDER_IDLE_THRESHOLD_MS = 6000;
+const WANDER_STEP_PX = 4;
+
+function idleWanderTick() {
+  ['blue', 'red'].forEach(agentId => {
+    const sprite = agentSprites[agentId];
+    if (!sprite) return;
+
+    const lastUpdate = lastRealUpdate[agentId] || 0;
+    const idleFor = Date.now() - lastUpdate;
+    if (idleFor < WANDER_IDLE_THRESHOLD_MS) return;
+
+    const angle = Math.random() * Math.PI * 2;
+    let newX = sprite.x + Math.cos(angle) * WANDER_STEP_PX;
+    let newY = sprite.y + Math.sin(angle) * WANDER_STEP_PX;
+
+    const otherId = agentId === 'blue' ? 'red' : 'blue';
+    const otherSprite = agentSprites[otherId];
+    if (otherSprite) {
+      const dx = newX - otherSprite.x;
+      const dy = newY - otherSprite.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < MIN_AGENT_DISTANCE) return;
+    }
+
+    newX = Math.max(15, Math.min(WORLD_SIZE - 15, newX));
+    newY = Math.max(15, Math.min(WORLD_SIZE - 15, newY));
+
+    sprite.x = newX;
+    sprite.y = newY;
+  });
+}
+
+setInterval(idleWanderTick, 1200);
+
 function connect() {
+
   const ws = new WebSocket(WS_URL);
 
   ws.onopen = () => {
