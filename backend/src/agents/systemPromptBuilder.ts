@@ -109,3 +109,21 @@ TIPOS DE AÇÃO DISPONÍVEIS (escolha exatamente um "type" e preencha os campos)
 
 Não inclua nada além do JSON. Sem markdown, sem explicações fora do JSON.`;
 }
+
+export function buildPlanPrompt(ctx: AgentContext): string {
+  const base = buildSystemPrompt(ctx);
+  return base + `
+
+MODO DE PLANEJAMENTO:
+Ao inves de decidir apenas UMA acao, decida uma SEQUENCIA de 4 a 7 passos que voce pretende realizar nos proximos minutos, como se estivesse planejando com antecedencia o que vai fazer e dizer, sabendo que nao podera "pensar" de novo por um tempo depois disso.
+Cada passo e um objeto igual ao formato de resposta normal (speech, thought, emotion, action). Nem todo passo precisa ter fala (speech pode ser null na maioria); reserve a fala para os momentos que realmente importam dentro dessa sequencia.
+Pense nisso como um pequeno roteiro da sua proxima janela de tempo: pode incluir observar, se mover em direcao a um objetivo, construir algo passo a passo, tentar se comunicar em um momento especifico, e terminar em um estado que faca sentido continuar depois.
+
+Responda APENAS em JSON valido no formato:
+{
+  "steps": [
+    { "speech": "...", "thought": "...", "emotion": "...", "action": { "type": "...", ... } }
+  ]
+}
+Nao inclua nada fora desse JSON.`;
+}

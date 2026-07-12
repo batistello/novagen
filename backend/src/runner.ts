@@ -1,58 +1,66 @@
-import { initSchema } from './db';
-import { tickAgent } from './agents/agentLoop';
+import { initSchema, db } from './db';
+import { planAgent, executeNextStep } from './agents/agentLoop';
 import { getTier } from './agents/energyConfig';
-import { db } from './db';
 import { initWebSocketServer } from './ws/server';
 
 const AGENT_IDS = ['blue', 'red'];
-
-function loadEnergy(agentId: string): number {
-  const row = db.prepare(`SELECT energy FROM agent_state WHERE agent_id = ?`).get(agentId) as { energy: number };
-  return row.energy;
-}
-
-let tickQueue: Promise<void> = Promise.resolve();
+const BODY_MIN_MS = 4000;
+const BODY_MAX_MS = 7000;
 
 function randomDelay(minMs: number, maxMs: number): number {
   return minMs + Math.random() * (maxMs - minMs);
 }
 
-async function runTickSequentially(agentId: string) {
+function loadAgentState(agentId: string) {
+  return db.prepare(`SELECT energy, last_tick_at FROM agent_state WHERE agent_id = ?`).get(agentId) as { energy: number; last_tick_at: number };
+}
+
+let tickQueue: Promise<void> = Promise.resolve();
+
+async function runSequentially(fn: () => Promise<void> | void) {
   const previousQueue = tickQueue;
   let releaseNext: () => void;
   tickQueue = new Promise(resolve => { releaseNext = resolve; });
-
   await previousQueue.catch(() => {});
-
   try {
-    await tickAgent(agentId);
+    await fn();
   } finally {
-    const delay = randomDelay(2000, 4000);
+    const delay = randomDelay(1500, 3000);
     await new Promise(resolve => setTimeout(resolve, delay));
     releaseNext!();
   }
 }
 
-async function scheduleNextTick(agentId: string) {
+async function bodyCycle(agentId: string) {
   try {
-    await runTickSequentially(agentId);
-    const energy = loadEnergy(agentId);
-    const tier = getTier(energy);
-    console.log(`[runner] ${agentId} próximo tick em ${tier.tickIntervalMs / 1000}s (tier: ${tier.name})`);
-    setTimeout(() => scheduleNextTick(agentId), tier.tickIntervalMs);
+    await runSequentially(async () => {
+      const result = executeNextStep(agentId);
+      if (!result.executed) {
+        const state = loadAgentState(agentId);
+        const tier = getTier(state.energy);
+        const elapsed = Date.now() - state.last_tick_at;
+        if (tier.callsLLM && elapsed >= tier.tickIntervalMs) {
+          const planResult = await planAgent(agentId);
+          if (planResult.planned) {
+            executeNextStep(agentId);
+          }
+        }
+      }
+    });
   } catch (err) {
-    console.error(`[runner] erro no tick de ${agentId}:`, err);
-    setTimeout(() => scheduleNextTick(agentId), 30_000);
+    console.error(`[runner] erro no ciclo de ${agentId}:`, err);
   }
+  const nextDelay = randomDelay(BODY_MIN_MS, BODY_MAX_MS);
+  setTimeout(() => bodyCycle(agentId), nextDelay);
 }
 
 function start() {
   initSchema();
   const wsPort = Number(process.env.WS_PORT) || 4001;
   initWebSocketServer(wsPort);
-  console.log('[runner] Artificial Genesis iniciando...');
+  console.log('[runner] Artificial Genesis (cerebro/corpo) iniciando...');
   AGENT_IDS.forEach(agentId => {
-    scheduleNextTick(agentId);
+    bodyCycle(agentId);
   });
 }
 

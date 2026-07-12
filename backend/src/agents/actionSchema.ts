@@ -55,3 +55,18 @@ export function parseAgentResponse(raw: unknown): AgentResponse {
   console.error('[actionSchema] Resposta inválida do LLM, usando fallback:', result.error.message);
   return FALLBACK_RESPONSE;
 }
+
+export const PlanStepsSchema = z.object({
+  steps: z.array(AgentResponseSchema).min(3).max(8),
+});
+
+export type PlanSteps = z.infer<typeof PlanStepsSchema>;
+
+export const FALLBACK_PLAN: PlanSteps = { steps: [FALLBACK_RESPONSE] };
+
+export function parsePlanSteps(raw: unknown): PlanSteps {
+  const result = PlanStepsSchema.safeParse(raw);
+  if (result.success) return result.data;
+  console.error('[actionSchema] Plano invalido do LLM, usando fallback:', result.error.message);
+  return FALLBACK_PLAN;
+}

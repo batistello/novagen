@@ -53,3 +53,12 @@ CREATE TABLE IF NOT EXISTS world_objects (
 -- Colunas adicionadas via migração manual em 11/07/2026
 -- ALTER TABLE agent_state ADD COLUMN tokens_used_today INTEGER NOT NULL DEFAULT 0;
 -- ALTER TABLE agent_state ADD COLUMN tokens_date TEXT;
+
+CREATE TABLE IF NOT EXISTS agent_plan_steps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  agent_id TEXT NOT NULL,
+  step_index INTEGER NOT NULL,
+  response_json TEXT NOT NULL,
+  executed INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);

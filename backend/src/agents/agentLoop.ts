@@ -208,3 +208,333 @@ ${budgetNote}`;
 
   return { skipped: false, tier: tier.name, response, tokensUsed: llmResult.totalTokens, energyAfter: newEnergy };
 }
+
+import { parsePlanSteps } from './actionSchema';
+import { buildPlanPrompt } from './systemPromptBuilder';
+import { savePlan, getNextStep, markStepExecuted } from './planStore';
+
+export async function planAgent(agentId: string) {
+  const energyAfterRegen = applyRegen(agentId);
+  const tier = getTier(energyAfterRegen);
+
+  if (!tier.callsLLM) {
+    return { planned: false, tier: tier.name };
+  }
+
+  const budget = getTokenBudgetStatus(agentId);
+  if (budget.ratio >= 0.98) {
+    console.log(`[${AGENT_NAMES[agentId]}] orcamento diario esgotado, sem novo plano.`);
+    return { planned: false, tier: tier.name };
+  }
+
+  let maxTokens = 1600;
+  let budgetNote = '';
+  if (budget.ratio >= 0.85) {
+    maxTokens = 400;
+    budgetNote = 'Sua energia mental esta quase esgotada por hoje. Planeje poucos passos simples.';
+  } else if (budget.ratio >= 0.65) {
+    maxTokens = 900;
+    budgetNote = 'Voce sente que precisa economizar pensamento hoje. Planeje um numero menor de passos.';
+  } else if (budget.ratio >= 0.40) {
+    maxTokens = 1200;
+    budgetNote = 'Modere um pouco a extensao do seu planejamento hoje.';
+  }
+
+  const state = loadState(agentId);
+  const traits = loadTraits(agentId);
+  const recentMemory = getRecentMemoryFor(agentId, 15);
+  const otherAgentId = agentId === 'blue' ? 'red' : 'blue';
+  const otherState = loadState(otherAgentId);
+  const otherName = AGENT_NAMES[otherAgentId];
+
+  const existingObjects = db.prepare(
+    `SELECT id, type, x, y, color, label FROM world_objects WHERE removed_at IS NULL ORDER BY created_at DESC LIMIT 20`
+  ).all() as { id: number; type: string; x: number; y: number; color: string | null; label: string | null }[];
+  const objectsText = existingObjects.length > 0
+    ? existingObjects.map(o => `  - id ${o.id}: ${o.type} em (${o.x.toFixed(0)}, ${o.y.toFixed(0)})${o.label ? `, rotulado "${o.label}"` : ''}${o.color ? `, cor ${o.color}` : ''}`).join('\n')
+    : '  (nenhum objeto existe no mundo ainda)';
+
+  const worldSummary = `O mundo e um quadrado. Eixo X: negativo = oeste, positivo = leste. Eixo Y: negativo = norte, positivo = sul. O centro e (0,0).
+Sua posicao atual: (${state.x.toFixed(0)}, ${state.y.toFixed(0)}).
+Posicao de ${otherName}: (${otherState.x.toFixed(0)}, ${otherState.y.toFixed(0)}).
+Distancia ate ${otherName}: ${Math.round(Math.sqrt((state.x - otherState.x) ** 2 + (state.y - otherState.y) ** 2))} unidades.
+Objetos existentes no mundo (use o "id" exato para remover, mover, colorir ou renomear um objeto):
+${objectsText}
+${budgetNote}`;
+
+  const ctx: AgentContext = {
+    identity: { id: agentId, name: AGENT_NAMES[agentId], color: AGENT_COLORS[agentId] },
+    traits,
+    energy: energyAfterRegen,
+    tier,
+    emotion: state.emotion,
+    recentMemory,
+    worldSummary,
+  };
+
+  const systemPrompt = buildPlanPrompt(ctx);
+  const userPrompt = 'Planeje sua proxima sequencia de passos.';
+
+  const provider = AGENT_PROVIDER[agentId];
+  const llmResult = provider === 'groq'
+    ? await callGroq(systemPrompt, userPrompt, maxTokens)
+    : await callGemini(systemPrompt, userPrompt, maxTokens);
+
+  const planResult = parsePlanSteps(llmResult.raw);
+  savePlan(agentId, planResult.steps);
+
+  const newEnergy = spendEnergy(agentId, llmResult.totalTokens);
+  recordTokenUsage(agentId, llmResult.totalTokens);
+
+  console.log(`[${AGENT_NAMES[agentId]}] novo plano com ${planResult.steps.length} passos (energia ${newEnergy.toFixed(1)}%, tier ${tier.name}).`);
+
+  return { planned: true, tier: tier.name, stepsCount: planResult.steps.length };
+}
+
+export function executeNextStep(agentId: string): { executed: boolean } {
+  const next = getNextStep(agentId);
+  if (!next) return { executed: false };
+
+  persistAgentResponse(agentId, next.response);
+
+  broadcastEvent({
+    type: 'agent_tick',
+    agentId,
+    speech: next.response.speech,
+    thought: next.response.thought,
+    emotion: next.response.emotion,
+    action: next.response.action,
+  });
+
+  const worldAffectingActions = ['create_object', 'draw', 'write', 'remove_object', 'move_object', 'color_object', 'rename_object'];
+  if (worldAffectingActions.includes(next.response.action.type)) {
+    broadcastFullState();
+  }
+
+  markStepExecuted(next.id);
+
+  const speechDisplay = next.response.speech ? `"${next.response.speech}"` : '(silencio)';
+  console.log(`[${AGENT_NAMES[agentId]}] (passo do plano) fala: ${speechDisplay} | acao: ${next.response.action.type}`);
+
+  return { executed: true };
+}
+
+import { parsePlanSteps } from './actionSchema';
+import { buildPlanPrompt } from './systemPromptBuilder';
+import { savePlan, getNextStep, markStepExecuted } from './planStore';
+
+export async function planAgent(agentId: string) {
+  const energyAfterRegen = applyRegen(agentId);
+  const tier = getTier(energyAfterRegen);
+
+  if (!tier.callsLLM) {
+    return { planned: false, tier: tier.name };
+  }
+
+  const budget = getTokenBudgetStatus(agentId);
+  if (budget.ratio >= 0.98) {
+    console.log(`[${AGENT_NAMES[agentId]}] orcamento diario esgotado, sem novo plano.`);
+    return { planned: false, tier: tier.name };
+  }
+
+  let maxTokens = 1600;
+  let budgetNote = '';
+  if (budget.ratio >= 0.85) {
+    maxTokens = 400;
+    budgetNote = 'Sua energia mental esta quase esgotada por hoje. Planeje poucos passos simples.';
+  } else if (budget.ratio >= 0.65) {
+    maxTokens = 900;
+    budgetNote = 'Voce sente que precisa economizar pensamento hoje. Planeje um numero menor de passos.';
+  } else if (budget.ratio >= 0.40) {
+    maxTokens = 1200;
+    budgetNote = 'Modere um pouco a extensao do seu planejamento hoje.';
+  }
+
+  const state = loadState(agentId);
+  const traits = loadTraits(agentId);
+  const recentMemory = getRecentMemoryFor(agentId, 15);
+  const otherAgentId = agentId === 'blue' ? 'red' : 'blue';
+  const otherState = loadState(otherAgentId);
+  const otherName = AGENT_NAMES[otherAgentId];
+
+  const existingObjects = db.prepare(
+    `SELECT id, type, x, y, color, label FROM world_objects WHERE removed_at IS NULL ORDER BY created_at DESC LIMIT 20`
+  ).all() as { id: number; type: string; x: number; y: number; color: string | null; label: string | null }[];
+  const objectsText = existingObjects.length > 0
+    ? existingObjects.map(o => `  - id ${o.id}: ${o.type} em (${o.x.toFixed(0)}, ${o.y.toFixed(0)})${o.label ? `, rotulado "${o.label}"` : ''}${o.color ? `, cor ${o.color}` : ''}`).join('\n')
+    : '  (nenhum objeto existe no mundo ainda)';
+
+  const worldSummary = `O mundo e um quadrado. Eixo X: negativo = oeste, positivo = leste. Eixo Y: negativo = norte, positivo = sul. O centro e (0,0).
+Sua posicao atual: (${state.x.toFixed(0)}, ${state.y.toFixed(0)}).
+Posicao de ${otherName}: (${otherState.x.toFixed(0)}, ${otherState.y.toFixed(0)}).
+Distancia ate ${otherName}: ${Math.round(Math.sqrt((state.x - otherState.x) ** 2 + (state.y - otherState.y) ** 2))} unidades.
+Objetos existentes no mundo (use o "id" exato para remover, mover, colorir ou renomear um objeto):
+${objectsText}
+${budgetNote}`;
+
+  const ctx: AgentContext = {
+    identity: { id: agentId, name: AGENT_NAMES[agentId], color: AGENT_COLORS[agentId] },
+    traits,
+    energy: energyAfterRegen,
+    tier,
+    emotion: state.emotion,
+    recentMemory,
+    worldSummary,
+  };
+
+  const systemPrompt = buildPlanPrompt(ctx);
+  const userPrompt = 'Planeje sua proxima sequencia de passos.';
+
+  const provider = AGENT_PROVIDER[agentId];
+  const llmResult = provider === 'groq'
+    ? await callGroq(systemPrompt, userPrompt, maxTokens)
+    : await callGemini(systemPrompt, userPrompt, maxTokens);
+
+  const planResult = parsePlanSteps(llmResult.raw);
+  savePlan(agentId, planResult.steps);
+
+  const newEnergy = spendEnergy(agentId, llmResult.totalTokens);
+  recordTokenUsage(agentId, llmResult.totalTokens);
+
+  console.log(`[${AGENT_NAMES[agentId]}] novo plano com ${planResult.steps.length} passos (energia ${newEnergy.toFixed(1)}%, tier ${tier.name}).`);
+
+  return { planned: true, tier: tier.name, stepsCount: planResult.steps.length };
+}
+
+export function executeNextStep(agentId: string): { executed: boolean } {
+  const next = getNextStep(agentId);
+  if (!next) return { executed: false };
+
+  persistAgentResponse(agentId, next.response);
+
+  broadcastEvent({
+    type: 'agent_tick',
+    agentId,
+    speech: next.response.speech,
+    thought: next.response.thought,
+    emotion: next.response.emotion,
+    action: next.response.action,
+  });
+
+  const worldAffectingActions = ['create_object', 'draw', 'write', 'remove_object', 'move_object', 'color_object', 'rename_object'];
+  if (worldAffectingActions.includes(next.response.action.type)) {
+    broadcastFullState();
+  }
+
+  markStepExecuted(next.id);
+
+  const speechDisplay = next.response.speech ? `"${next.response.speech}"` : '(silencio)';
+  console.log(`[${AGENT_NAMES[agentId]}] (passo do plano) fala: ${speechDisplay} | acao: ${next.response.action.type}`);
+
+  return { executed: true };
+}
+
+import { parsePlanSteps } from './actionSchema';
+import { buildPlanPrompt } from './systemPromptBuilder';
+import { savePlan, getNextStep, markStepExecuted } from './planStore';
+
+export async function planAgent(agentId: string) {
+  const energyAfterRegen = applyRegen(agentId);
+  const tier = getTier(energyAfterRegen);
+
+  if (!tier.callsLLM) {
+    return { planned: false, tier: tier.name };
+  }
+
+  const budget = getTokenBudgetStatus(agentId);
+  if (budget.ratio >= 0.98) {
+    console.log(`[${AGENT_NAMES[agentId]}] orcamento diario esgotado, sem novo plano.`);
+    return { planned: false, tier: tier.name };
+  }
+
+  let maxTokens = 1600;
+  let budgetNote = '';
+  if (budget.ratio >= 0.85) {
+    maxTokens = 400;
+    budgetNote = 'Sua energia mental esta quase esgotada por hoje. Planeje poucos passos simples.';
+  } else if (budget.ratio >= 0.65) {
+    maxTokens = 900;
+    budgetNote = 'Voce sente que precisa economizar pensamento hoje. Planeje um numero menor de passos.';
+  } else if (budget.ratio >= 0.40) {
+    maxTokens = 1200;
+    budgetNote = 'Modere um pouco a extensao do seu planejamento hoje.';
+  }
+
+  const state = loadState(agentId);
+  const traits = loadTraits(agentId);
+  const recentMemory = getRecentMemoryFor(agentId, 15);
+  const otherAgentId = agentId === 'blue' ? 'red' : 'blue';
+  const otherState = loadState(otherAgentId);
+  const otherName = AGENT_NAMES[otherAgentId];
+
+  const existingObjects = db.prepare(
+    `SELECT id, type, x, y, color, label FROM world_objects WHERE removed_at IS NULL ORDER BY created_at DESC LIMIT 20`
+  ).all() as { id: number; type: string; x: number; y: number; color: string | null; label: string | null }[];
+  const objectsText = existingObjects.length > 0
+    ? existingObjects.map(o => `  - id ${o.id}: ${o.type} em (${o.x.toFixed(0)}, ${o.y.toFixed(0)})${o.label ? `, rotulado "${o.label}"` : ''}${o.color ? `, cor ${o.color}` : ''}`).join('\n')
+    : '  (nenhum objeto existe no mundo ainda)';
+
+  const worldSummary = `O mundo e um quadrado. Eixo X: negativo = oeste, positivo = leste. Eixo Y: negativo = norte, positivo = sul. O centro e (0,0).
+Sua posicao atual: (${state.x.toFixed(0)}, ${state.y.toFixed(0)}).
+Posicao de ${otherName}: (${otherState.x.toFixed(0)}, ${otherState.y.toFixed(0)}).
+Distancia ate ${otherName}: ${Math.round(Math.sqrt((state.x - otherState.x) ** 2 + (state.y - otherState.y) ** 2))} unidades.
+Objetos existentes no mundo (use o "id" exato para remover, mover, colorir ou renomear um objeto):
+${objectsText}
+${budgetNote}`;
+
+  const ctx: AgentContext = {
+    identity: { id: agentId, name: AGENT_NAMES[agentId], color: AGENT_COLORS[agentId] },
+    traits,
+    energy: energyAfterRegen,
+    tier,
+    emotion: state.emotion,
+    recentMemory,
+    worldSummary,
+  };
+
+  const systemPrompt = buildPlanPrompt(ctx);
+  const userPrompt = 'Planeje sua proxima sequencia de passos.';
+
+  const provider = AGENT_PROVIDER[agentId];
+  const llmResult = provider === 'groq'
+    ? await callGroq(systemPrompt, userPrompt, maxTokens)
+    : await callGemini(systemPrompt, userPrompt, maxTokens);
+
+  const planResult = parsePlanSteps(llmResult.raw);
+  savePlan(agentId, planResult.steps);
+
+  const newEnergy = spendEnergy(agentId, llmResult.totalTokens);
+  recordTokenUsage(agentId, llmResult.totalTokens);
+
+  console.log(`[${AGENT_NAMES[agentId]}] novo plano com ${planResult.steps.length} passos (energia ${newEnergy.toFixed(1)}%, tier ${tier.name}).`);
+
+  return { planned: true, tier: tier.name, stepsCount: planResult.steps.length };
+}
+
+export function executeNextStep(agentId: string): { executed: boolean } {
+  const next = getNextStep(agentId);
+  if (!next) return { executed: false };
+
+  persistAgentResponse(agentId, next.response);
+
+  broadcastEvent({
+    type: 'agent_tick',
+    agentId,
+    speech: next.response.speech,
+    thought: next.response.thought,
+    emotion: next.response.emotion,
+    action: next.response.action,
+  });
+
+  const worldAffectingActions = ['create_object', 'draw', 'write', 'remove_object', 'move_object', 'color_object', 'rename_object'];
+  if (worldAffectingActions.includes(next.response.action.type)) {
+    broadcastFullState();
+  }
+
+  markStepExecuted(next.id);
+
+  const speechDisplay = next.response.speech ? `"${next.response.speech}"` : '(silencio)';
+  console.log(`[${AGENT_NAMES[agentId]}] (passo do plano) fala: ${speechDisplay} | acao: ${next.response.action.type}`);
+
+  return { executed: true };
+}
