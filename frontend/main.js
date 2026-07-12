@@ -1,5 +1,8 @@
 const WORLD_SIZE = 600;
-const WS_URL = 'ws://' + location.hostname + ':4001';
+const isSecure = location.protocol === 'https:';
+const WS_URL = isSecure
+  ? 'wss://' + location.host + '/ws'
+  : 'ws://' + location.hostname + ':4001';
 
 const app = new PIXI.Application({ width: WORLD_SIZE, height: WORLD_SIZE, backgroundColor: 0xffffff });
 document.getElementById('app').appendChild(app.view);
@@ -43,12 +46,12 @@ function updateAgentPosition(agentId, x, y) {
   const sprite = agentSprites[agentId];
   if (!sprite) return;
 
-  const otherId = agentId === 'blue' ? 'red' : 'blue';
-  const otherSprite = agentSprites[otherId];
-
   let { sx, sy } = worldToScreen(x, y);
 
-  if (otherSprite) {
+  Object.keys(agentSprites).forEach(otherId => {
+    if (otherId === agentId) return;
+    const otherSprite = agentSprites[otherId];
+    if (!otherSprite) return;
     const dx = sx - otherSprite.x;
     const dy = sy - otherSprite.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -59,7 +62,8 @@ function updateAgentPosition(agentId, x, y) {
     } else if (dist === 0) {
       sx += MIN_AGENT_DISTANCE;
     }
-  }
+  });
+
 
   sx = Math.max(15, Math.min(WORLD_SIZE - 15, sx));
   sy = Math.max(15, Math.min(WORLD_SIZE - 15, sy));
@@ -210,6 +214,31 @@ function renderWorldObjects(objects) {
   });
 }
 
+const sleepIndicators = {};
+
+function setSleepIndicator(agentId, resting) {
+  const sprite = agentSprites[agentId];
+  if (!sprite) return;
+
+  if (resting) {
+    if (sleepIndicators[agentId]) return;
+    const label = new PIXI.Text('Zzz', {
+      fontFamily: 'Arial', fontSize: 13, fill: 0x888888, fontStyle: 'italic',
+    });
+    const isNearTop = sprite.y < 30;
+    label.anchor.set(0.5, isNearTop ? 0 : 1);
+    label.x = 0;
+    label.y = isNearTop ? 20 : -16;
+    sprite.addChild(label);
+    sleepIndicators[agentId] = label;
+  } else {
+    if (sleepIndicators[agentId]) {
+      sprite.removeChild(sleepIndicators[agentId]);
+      delete sleepIndicators[agentId];
+    }
+  }
+}
+
 function showSpeechBubble(agentId, text) {
   if (speechBubbles[agentId]) {
     bubbleLayer.removeChild(speechBubbles[agentId]);
@@ -246,7 +275,7 @@ function showSpeechBubble(agentId, text) {
   container.addChild(bg);
   container.addChild(label);
 
-  const horizontalOffset = agentId === 'blue' ? -bubbleWidth / 2 - 10 : bubbleWidth / 2 + 10;
+  const horizontalOffset = sprite.x < WORLD_SIZE / 2 ? -bubbleWidth / 2 - 10 : bubbleWidth / 2 + 10;
   let targetX = sprite.x + horizontalOffset;
   targetX = Math.max(bubbleWidth / 2 + 5, Math.min(WORLD_SIZE - bubbleWidth / 2 - 5, targetX));
   container.x = targetX;
@@ -286,6 +315,11 @@ function applyFullState(msg) {
   msg.states.forEach(state => {
     updateAgentPosition(state.agent_id, state.x, state.y);
   });
+  if (msg.resting) {
+    Object.entries(msg.resting).forEach(([agentId, isResting]) => {
+      setSleepIndicator(agentId, isResting);
+    });
+  }
   renderWorldObjects(msg.objects || []);
 
   if (msg.lastSpeeches) {
@@ -300,7 +334,7 @@ function applyFullState(msg) {
     hasBackfilledLog = true;
 }
 
-const AGENT_NAMES = { blue: 'Azul', red: 'Vermelho' };
+const AGENT_NAMES = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
 
 function addLogEntry(agentId, speech, thought) {
   const container = document.getElementById('log-entries');
@@ -337,9 +371,10 @@ const WANDER_IDLE_THRESHOLD_MS = 6000;
 const WANDER_STEP_PX = 4;
 
 function idleWanderTick() {
-  ['blue', 'red'].forEach(agentId => {
+  Object.keys(agentSprites).forEach(agentId => {
     const sprite = agentSprites[agentId];
     if (!sprite) return;
+    if (sleepIndicators[agentId]) return;
 
     const lastUpdate = lastRealUpdate[agentId] || 0;
     const idleFor = Date.now() - lastUpdate;
@@ -349,14 +384,17 @@ function idleWanderTick() {
     let newX = sprite.x + Math.cos(angle) * WANDER_STEP_PX;
     let newY = sprite.y + Math.sin(angle) * WANDER_STEP_PX;
 
-    const otherId = agentId === 'blue' ? 'red' : 'blue';
-    const otherSprite = agentSprites[otherId];
-    if (otherSprite) {
+    const tooClose = Object.keys(agentSprites).some(otherId => {
+      if (otherId === agentId) return false;
+      const otherSprite = agentSprites[otherId];
+      if (!otherSprite) return false;
       const dx = newX - otherSprite.x;
       const dy = newY - otherSprite.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < MIN_AGENT_DISTANCE) return;
-    }
+      return dist < MIN_AGENT_DISTANCE;
+    });
+    if (tooClose) return;
+
 
     newX = Math.max(15, Math.min(WORLD_SIZE - 15, newX));
     newY = Math.max(15, Math.min(WORLD_SIZE - 15, newY));
@@ -396,7 +434,11 @@ function connect() {
       applyFullState(msg);
     }
 
+    if (msg.type === 'agent_status') {
+      setSleepIndicator(msg.agentId, msg.resting);
+    }
     if (msg.type === 'agent_tick') {
+      setSleepIndicator(msg.agentId, false);
       const a = msg.action;
 
       if (a.type === 'walk' || a.type === 'move_object') {

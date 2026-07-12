@@ -13,13 +13,14 @@ import { callGemini } from './llm/geminiClient';
 function getGeminiKeyFor(agentId: string): string | undefined {
   if (agentId === 'blue') return process.env.GEMINI_API_KEY_BLUE || undefined;
   if (agentId === 'red') return process.env.GEMINI_API_KEY_RED || undefined;
+  if (agentId === 'green') return process.env.GEMINI_API_KEY_GREEN || undefined;
   return undefined;
 }
 
-const AGENT_IDS = ['blue', 'red'];
-const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho' };
-const AGENT_COLORS: Record<string, string> = { blue: '#3498db', red: '#e74c3c' };
-const AGENT_PROVIDER: Record<string, 'groq' | 'gemini'> = { blue: 'gemini', red: 'gemini' };
+const AGENT_IDS = ['blue', 'red', 'green'];
+const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
+const AGENT_COLORS: Record<string, string> = { blue: '#3498db', red: '#e74c3c', green: '#2ecc71' };
+const AGENT_PROVIDER: Record<string, 'groq' | 'gemini'> = { blue: 'gemini', red: 'gemini', green: 'gemini' };
 const BEHAVIOR_TICK_MS = 3000;
 
 function loadState(agentId: string) {
@@ -60,12 +61,16 @@ async function think(agentId: string) {
 
     if (!tier.callsLLM) {
       console.log(`[${AGENT_NAMES[agentId]}] em '${tier.name}', sem nova intencao neste ciclo.`);
+      const { broadcastEvent: be1 } = await import('./ws/server');
+      be1({ type: 'agent_status', agentId, resting: true, reason: 'energy' });
       return;
     }
 
     const budget = getTokenBudgetStatus(agentId);
     if (budget.ratio >= 0.98) {
       console.log(`[${AGENT_NAMES[agentId]}] orcamento diario esgotado, sem nova intencao.`);
+      const { broadcastEvent: be2 } = await import('./ws/server');
+      be2({ type: 'agent_status', agentId, resting: true, reason: 'budget' });
       return;
     }
 
@@ -85,9 +90,13 @@ async function think(agentId: string) {
     const state = loadState(agentId);
     const traits = loadTraits(agentId);
     const recentMemory = getRecentMemoryFor(agentId, 15);
-    const otherAgentId = agentId === 'blue' ? 'red' : 'blue';
-    const otherState = loadState(otherAgentId);
-    const otherName = AGENT_NAMES[otherAgentId];
+    const otherAgentIds = AGENT_IDS.filter(id => id !== agentId);
+    const othersText = otherAgentIds.map(otherId => {
+      const otherState = loadState(otherId);
+      const otherName = AGENT_NAMES[otherId];
+      const dist = Math.round(Math.sqrt((state.x - otherState.x) ** 2 + (state.y - otherState.y) ** 2));
+      return `  - ${otherName} (id "${otherId}"): posicao (${otherState.x.toFixed(0)}, ${otherState.y.toFixed(0)}), distancia ${dist} unidades`;
+    }).join('\n');
 
     const existingObjects = db.prepare(
       `SELECT id, type, x, y, color, label FROM world_objects WHERE removed_at IS NULL ORDER BY created_at DESC LIMIT 15`
@@ -96,10 +105,11 @@ async function think(agentId: string) {
       ? existingObjects.map(o => `  - id ${o.id}: ${o.type} em (${o.x.toFixed(0)}, ${o.y.toFixed(0)})`).join('\n')
       : '  (nenhum objeto existe no mundo ainda)';
 
-    const worldSummary = `O mundo e um quadrado. Eixo X: negativo = oeste, positivo = leste. Eixo Y: negativo = norte, positivo = sul. O centro e (0,0).
+    const worldSummary = `O mundo e um quadrado. Eixo X: negativo = oeste (esquerda), positivo = leste (direita). Eixo Y: negativo = norte (voce esta mais para CIMA na tela), positivo = sul (voce esta mais para BAIXO na tela). O centro e (0,0).
 Sua posicao atual: (${state.x.toFixed(0)}, ${state.y.toFixed(0)}).
-Posicao de ${otherName}: (${otherState.x.toFixed(0)}, ${otherState.y.toFixed(0)}).
-Distancia ate ${otherName}: ${Math.round(Math.sqrt((state.x - otherState.x) ** 2 + (state.y - otherState.y) ** 2))} unidades.
+Existem outras ${otherAgentIds.length} entidades neste mundo alem de voce:
+${othersText}
+Se sua intencao for "approach" ou "move_away", defina "target_agent_id" com o id exato (${otherAgentIds.map(id => `"${id}"`).join(' ou ')}) da entidade que deseja como alvo.
 Objetos existentes:
 ${objectsText}
 ${budgetNote}`;
@@ -131,6 +141,8 @@ ${budgetNote}`;
     }
     recordEvent(agentId, 'thought', intention.thought);
 
+    const { broadcastEvent: be3 } = await import('./ws/server');
+    be3({ type: 'agent_status', agentId, resting: false, reason: null });
     console.log(`[${AGENT_NAMES[agentId]}] nova intencao: ${intention.goal_type} por ${intention.duration_minutes}min (energia ${energyAfterRegen.toFixed(1)}%, tier ${tier.name})`);
 
     const { broadcastEvent } = await import('./ws/server');

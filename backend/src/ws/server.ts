@@ -36,11 +36,24 @@ function getLastSpeeches() {
   return lastByAgent;
 }
 
+function computeRestingMap(states: { agent_id: string; energy: number }[]): Record<string, boolean> {
+  const { getTier } = require('../agents/energyConfig');
+  const { getTokenBudgetStatus } = require('../agents/tokenBudget');
+  const map: Record<string, boolean> = {};
+  for (const s of states) {
+    const tier = getTier(s.energy);
+    const budget = getTokenBudgetStatus(s.agent_id);
+    map[s.agent_id] = !tier.callsLLM || budget.ratio >= 0.98;
+  }
+  return map;
+}
+
 function getFullState() {
   const agents = db.prepare(`SELECT * FROM agents`).all();
-  const states = db.prepare(`SELECT * FROM agent_state`).all();
+  const states = db.prepare(`SELECT * FROM agent_state`).all() as { agent_id: string; energy: number }[];
   const objects = db.prepare(`SELECT * FROM world_objects WHERE removed_at IS NULL`).all();
   const lastSpeeches = getLastSpeeches();
+  const resting = computeRestingMap(states);
 
   return {
     type: 'full_state',
@@ -48,6 +61,7 @@ function getFullState() {
     states,
     objects,
     lastSpeeches,
+    resting,
   };
 }
 

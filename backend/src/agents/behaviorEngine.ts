@@ -103,12 +103,39 @@ function distanceBetween(agentId: string, otherId: string): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
+function getAllAgentIds(): string[] {
+  return (db.prepare(`SELECT id FROM agents`).all() as { id: string }[]).map(r => r.id);
+}
+
+function getOtherAgentIds(agentId: string): string[] {
+  return getAllAgentIds().filter(id => id !== agentId);
+}
+
+function getClosestAgentId(agentId: string, candidates: string[]): string | null {
+  if (candidates.length === 0) return null;
+  let closest = candidates[0];
+  let closestDist = distanceBetween(agentId, closest);
+  for (const id of candidates.slice(1)) {
+    const d = distanceBetween(agentId, id);
+    if (d < closestDist) {
+      closest = id;
+      closestDist = d;
+    }
+  }
+  return closest;
+}
+
+function resolveTargetId(agentId: string, targetAgentId: string | null): string | null {
+  const others = getOtherAgentIds(agentId);
+  if (targetAgentId && others.includes(targetAgentId)) return targetAgentId;
+  return getClosestAgentId(agentId, others);
+}
+
 export function checkProximityInterrupt(agentId: string): boolean {
   const intention = getIntention(agentId);
   if (!intention || intention.interrupt_on_proximity == null) return false;
-  const otherId = agentId === 'blue' ? 'red' : 'blue';
-  const dist = distanceBetween(agentId, otherId);
-  return dist <= intention.interrupt_on_proximity;
+  const others = getOtherAgentIds(agentId);
+  return others.some(otherId => distanceBetween(agentId, otherId) <= intention.interrupt_on_proximity!);
 }
 
 export function behaviorTick(agentId: string): { acted: boolean; goalType: string | null } {
@@ -117,7 +144,7 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
     return { acted: false, goalType: intention?.goal_type ?? null };
   }
 
-  const otherId = agentId === 'blue' ? 'red' : 'blue';
+  const otherId = resolveTargetId(agentId, intention.target_agent_id ?? null);
   let actionType = 'wait';
   let moved = false;
 
@@ -134,22 +161,31 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
       break;
     }
     case 'approach': {
-      const other = loadState(otherId);
-      moveTowards(agentId, other.x, other.y, 5);
-      moved = true;
+      if (otherId) {
+        const self = loadState(agentId);
+        const other = loadState(otherId);
+        const distToOther = Math.sqrt((self.x - other.x) ** 2 + (self.y - other.y) ** 2);
+        const MIN_APPROACH_DISTANCE = 15;
+        if (distToOther > MIN_APPROACH_DISTANCE) {
+          moveTowards(agentId, other.x, other.y, Math.min(5, distToOther - MIN_APPROACH_DISTANCE));
+          moved = true;
+        }
+      }
       actionType = 'walk';
       break;
     }
     case 'move_away': {
       const self = loadState(agentId);
-      const other = loadState(otherId);
-      const dx = self.x - other.x;
-      const dy = self.y - other.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const fleeX = self.x + (dx / dist) * 30;
-      const fleeY = self.y + (dy / dist) * 30;
-      moveTowards(agentId, fleeX, fleeY, 5);
-      moved = true;
+      if (otherId) {
+        const other = loadState(otherId);
+        const dx = self.x - other.x;
+        const dy = self.y - other.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const fleeX = self.x + (dx / dist) * 30;
+        const fleeY = self.y + (dy / dist) * 30;
+        moveTowards(agentId, fleeX, fleeY, 5);
+        moved = true;
+      }
       actionType = 'walk';
       break;
     }
