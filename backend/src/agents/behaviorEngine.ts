@@ -12,6 +12,32 @@ function loadState(agentId: string) {
   };
 }
 
+const OBJECT_COLLISION_RADIUS = 10;
+
+function getNearbyObjects(x: number, y: number, radius: number) {
+  return db.prepare(
+    `SELECT x, y FROM world_objects WHERE removed_at IS NULL AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?`
+  ).all(x - radius, x + radius, y - radius, y + radius) as { x: number; y: number }[];
+}
+
+function collidesWithObject(x: number, y: number): boolean {
+  const nearby = getNearbyObjects(x, y, OBJECT_COLLISION_RADIUS * 2);
+  return nearby.some(obj => {
+    const d = Math.sqrt((obj.x - x) ** 2 + (obj.y - y) ** 2);
+    return d < OBJECT_COLLISION_RADIUS;
+  });
+}
+
+function rotatePoint(cx: number, cy: number, x: number, y: number, angleDeg: number) {
+  const rad = (angleDeg * Math.PI) / 180;
+  const dx = x - cx;
+  const dy = y - cy;
+  return {
+    x: cx + dx * Math.cos(rad) - dy * Math.sin(rad),
+    y: cy + dx * Math.sin(rad) + dy * Math.cos(rad),
+  };
+}
+
 function moveTowards(agentId: string, targetX: number, targetY: number, step: number) {
   const state = loadState(agentId);
   const dx = targetX - state.x;
@@ -20,8 +46,25 @@ function moveTowards(agentId: string, targetX: number, targetY: number, step: nu
   if (dist < 1) return { x: state.x, y: state.y, arrived: true };
 
   const moveDist = Math.min(step, dist);
-  const newX = state.x + (dx / dist) * moveDist;
-  const newY = state.y + (dy / dist) * moveDist;
+  let newX = state.x + (dx / dist) * moveDist;
+  let newY = state.y + (dy / dist) * moveDist;
+
+  if (collidesWithObject(newX, newY)) {
+    let deflected = false;
+    for (const angle of [35, -35, 70, -70]) {
+      const rotated = rotatePoint(state.x, state.y, newX, newY, angle);
+      if (!collidesWithObject(rotated.x, rotated.y)) {
+        newX = rotated.x;
+        newY = rotated.y;
+        deflected = true;
+        break;
+      }
+    }
+    if (!deflected) {
+      newX = state.x;
+      newY = state.y;
+    }
+  }
 
   const clampedX = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, newX));
   const clampedY = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, newY));
