@@ -1,8 +1,9 @@
 import { db } from '../db';
 
 const DAILY_LIMITS: Record<string, number> = {
-  blue: 180_000,
-  red: 900_000,
+  blue: 800_000,
+  red: 800_000,
+  green: 800_000,
 };
 
 function todayKey(): string {
