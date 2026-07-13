@@ -8,6 +8,7 @@ import { parseIntention } from './agents/actionSchema';
 import { buildIntentionPrompt, AgentContext } from './agents/systemPromptBuilder';
 import { getTokenBudgetStatus, recordTokenUsage } from './agents/tokenBudget';
 import { getRecentMemoryFor, recordEvent } from './agents/memory';
+import { getMemoriesByCategory } from './agents/memoryTiers';
 import { callGroq } from './llm/groqClient';
 import { callGemini } from './llm/geminiClient';
 
@@ -75,6 +76,16 @@ async function think(agentId: string) {
         db.prepare(
           `INSERT INTO world_objects (created_by, type, x, y, color, label, created_at) VALUES (?, 'corpse', ?, ?, ?, ?, ?)`
         ).run(agentId, stateAfterHunger.x, stateAfterHunger.y, AGENT_COLORS[agentId], `restos de ${AGENT_NAMES[agentId]}`, Date.now());
+
+        const { recordCategorizedMemory } = await import('./agents/memoryTiers');
+        const witnesses = db.prepare(`SELECT agent_id, x, y FROM agent_state WHERE agent_id != ? AND status != 'dead'`).all(agentId) as { agent_id: string; x: number; y: number }[];
+        const WITNESS_RADIUS_DEATH = 100;
+        witnesses.forEach(w => {
+          const dist = Math.sqrt((w.x - stateAfterHunger.x) ** 2 + (w.y - stateAfterHunger.y) ** 2);
+          if (dist <= WITNESS_RADIUS_DEATH) {
+            recordCategorizedMemory(w.agent_id, 'social', `${AGENT_NAMES[agentId]} parou de se mover e nao respondeu mais.`, agentId);
+          }
+        });
       }
 
       const { broadcastEvent: bedeath, broadcastFullState: bfsdeath } = await import('./ws/server');
@@ -117,6 +128,8 @@ async function think(agentId: string) {
     const state = loadState(agentId);
     const traits = loadTraits(agentId);
     const recentMemory = getRecentMemoryFor(agentId, 15);
+    const episodicMemory = getMemoriesByCategory(agentId, 'episodic', 6);
+    const socialMemory = getMemoriesByCategory(agentId, 'social', 6);
     const allStates = db.prepare(`SELECT agent_id, status FROM agent_state`).all() as { agent_id: string; status: string }[];
     const aliveIds = new Set(allStates.filter(s => s.status !== 'dead').map(s => s.agent_id));
     const otherAgentIds = AGENT_IDS.filter(id => id !== agentId && aliveIds.has(id));
@@ -176,6 +189,8 @@ Voce ve estes objetos proximos:
 ${objectsText}
 ${grassLine}
 
+${episodicMemory.length > 0 ? `Voce se lembra de coisas que ja viveu:\n${episodicMemory.map(m => `  - ${m}`).join('\n')}` : ''}
+${socialMemory.length > 0 ? `Voce se lembra de coisas que percebeu sobre as outras entidades:\n${socialMemory.map(m => `  - ${m}`).join('\n')}` : ''}
 Voce nao sabe o que existe alem do que consegue perceber aqui.
 ${otherAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", defina "target_agent_id" com o id exato (${otherAgentIds.map(id => `"${id}"`).join(' ou ')}) da entidade que deseja como alvo.` : ''}`;
 

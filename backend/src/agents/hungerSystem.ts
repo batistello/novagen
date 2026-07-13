@@ -1,4 +1,5 @@
 import { db } from '../db';
+import { recordCategorizedMemory } from './memoryTiers';
 
 const HUNGER_FULL_HOURS = 48; // 1 unidade de comida sustenta 48h reais (2 dias)
 const FOOD_SLOT_REGEN_HOURS = 24;
@@ -54,6 +55,19 @@ export function tryConsumeFood(agentId: string): boolean {
   if (slot.world_object_id) {
     db.prepare(`UPDATE world_objects SET removed_at = ? WHERE id = ?`).run(now, slot.world_object_id);
   }
+
+  recordCategorizedMemory(agentId, 'episodic', 'Consumi algo daquela area verde.');
+
+  const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
+  const selfState = db.prepare(`SELECT x, y FROM agent_state WHERE agent_id = ?`).get(agentId) as { x: number; y: number };
+  const others = db.prepare(`SELECT agent_id, x, y, status FROM agent_state WHERE agent_id != ? AND status != 'dead'`).all(agentId) as { agent_id: string; x: number; y: number; status: string }[];
+  const WITNESS_RADIUS = 60;
+  others.forEach(other => {
+    const dist = Math.sqrt((other.x - selfState.x) ** 2 + (other.y - selfState.y) ** 2);
+    if (dist <= WITNESS_RADIUS) {
+      recordCategorizedMemory(other.agent_id, 'social', `Vi ${AGENT_NAMES[agentId] ?? agentId} consumir algo daquela area verde.`, agentId);
+    }
+  });
 
   return true;
 }

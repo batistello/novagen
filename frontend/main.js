@@ -166,6 +166,36 @@ function renderWorldObjects(objects) {
         return;
       }
 
+      if (obj.type === 'tree') {
+        const tree = new PIXI.Graphics();
+        tree.beginFill(0x1e5631, 0.9).lineStyle(1, 0x0f2e1a);
+        tree.moveTo(0, -12).lineTo(8, 6).lineTo(-8, 6).closePath();
+        tree.endFill();
+        tree.x = sx;
+        tree.y = sy;
+        worldLayer.addChild(tree);
+        return;
+      }
+      if (obj.type === 'rock') {
+        const rock = new PIXI.Graphics();
+        rock.beginFill(0x7f8c8d, 0.9).lineStyle(1, 0x4d5656);
+        rock.moveTo(-8, 4).lineTo(-4, -6).lineTo(4, -7).lineTo(9, 3).lineTo(2, 7).closePath();
+        rock.endFill();
+        rock.x = sx;
+        rock.y = sy;
+        worldLayer.addChild(rock);
+        return;
+      }
+      if (obj.type === 'water_source') {
+        const water = new PIXI.Graphics();
+        water.beginFill(0x3498db, 0.7).lineStyle(1, 0x1f618d);
+        water.drawCircle(0, 0, 9);
+        water.endFill();
+        water.x = sx;
+        water.y = sy;
+        worldLayer.addChild(water);
+        return;
+      }
       if (obj.type === 'grass_patch') {
         const grass = new PIXI.Graphics();
         grass.beginFill(0x27ae60, 0.85).lineStyle(1, 0x1e8449);
@@ -354,6 +384,7 @@ function applyFullState(msg) {
       markAgentDead(state.agent_id);
     }
   });
+  updateHungerStatus(msg.states, msg.agents);
   if (msg.resting) {
     Object.entries(msg.resting).forEach(([agentId, isResting]) => {
       setSleepIndicator(agentId, isResting);
@@ -374,6 +405,22 @@ function applyFullState(msg) {
 }
 
 const AGENT_NAMES = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
+
+function updateHungerStatus(states, agents) {
+  const el = document.getElementById('hunger-status');
+  if (!el || !states) return;
+  const colorMap = {};
+  (agents || []).forEach(a => { colorMap[a.id] = a.color; });
+  el.innerHTML = states.map(s => {
+    const name = AGENT_NAMES[s.agent_id] || s.agent_id;
+    const hunger = typeof s.hunger === 'number' ? s.hunger.toFixed(0) : '?';
+    const isDead = s.status === 'dead';
+    const color = colorMap[s.agent_id] || '#888';
+    const label = isDead ? '(morto)' : `${hunger}% saciado`;
+    return `<span style="color:${color};">${name}</span>: ${label}`;
+  }).join(' &nbsp;|&nbsp; ');
+}
+
 
 function addLogEntry(agentId, speech, thought) {
   const container = document.getElementById('log-entries');

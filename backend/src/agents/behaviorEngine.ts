@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { getIntention, setWanderTarget, isIntentionExpiredOrInterrupted, StoredIntention } from './intentionStore';
 import { isNearGrass, tryConsumeFood, GRASS_LOCATION } from './hungerSystem';
+import { findNearbyResource, tryGatherResource, consumeForBuild } from './resourceSystem';
 import { broadcastEvent, broadcastFullState } from '../ws/server';
 
 const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho' };
@@ -191,7 +192,8 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
       break;
     }
     case 'build': {
-      if (Math.random() < 0.3) {
+      const materialResult = consumeForBuild(agentId);
+      if (materialResult.success) {
         createWorldObject(agentId);
         actionType = 'create_object';
         broadcastFullState();
@@ -209,6 +211,21 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
         moveTowards(agentId, GRASS_LOCATION.x, GRASS_LOCATION.y, 6);
         moved = true;
         actionType = 'walk';
+      }
+      break;
+    }
+    case 'gather': {
+      const self = loadState(agentId);
+      const nearby = findNearbyResource(self.x, self.y);
+      if (nearby && nearby.dist <= 15) {
+        const result = tryGatherResource(agentId, self.x, self.y);
+        actionType = result.success ? 'gather_success' : 'gather_failed';
+      } else if (nearby) {
+        moveTowards(agentId, nearby.x, nearby.y, 6);
+        moved = true;
+        actionType = 'walk';
+      } else {
+        actionType = 'observe';
       }
       break;
     }
