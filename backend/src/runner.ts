@@ -1,6 +1,6 @@
 import { initSchema, db } from './db';
 import { getTier, PASSIVE_REGEN_PER_MIN, SLEEP_REGEN_PER_MIN } from './agents/energyConfig';
-import { applyHungerDecay } from './agents/hungerSystem';
+import { applyHungerDecay, growPlants, describeHungerQualitative, describeEnergyQualitative, describePlantStage } from './agents/hungerSystem';
 import { initWebSocketServer } from './ws/server';
 import { getIntention, saveIntention, isIntentionExpiredOrInterrupted, markIntentionInterrupted } from './agents/intentionStore';
 import { behaviorTick, checkProximityInterrupt } from './agents/behaviorEngine';
@@ -181,15 +181,23 @@ async function think(agentId: string) {
 
     const hungerValue = stateAfterHunger.hunger;
     const distToGrass = Math.round(Math.sqrt((state.x - 0) ** 2 + (state.y - 0) ** 2));
-    const grassLine = distToGrass <= 70
-      ? `  - uma area diferente, com algo verde espalhado pelo chao: a ${distToGrass} metros, ao ${compassDirection(0 - state.x, 0 - state.y)}`
-      : '';
+    let grassLine = '';
+    if (distToGrass <= 70) {
+      const plants = db.prepare(`SELECT stage FROM food_slots WHERE status = 'available'`).all() as { stage: string }[];
+      if (plants.length > 0) {
+        const dir = compassDirection(0 - state.x, 0 - state.y);
+        const descriptions = plants.map(p => describePlantStage(p.stage));
+        grassLine = `  - uma area diferente do chao, a ${distToGrass} metros, ao ${dir}, onde voce percebe: ${descriptions.join(', ')}`;
+      } else {
+        grassLine = `  - uma area diferente do chao, a ${distToGrass} metros, ao ${compassDirection(0 - state.x, 0 - state.y)}, mas nao ha nada visivel ali no momento`;
+      }
+    }
 
     const worldSummary = `Voce percebe o espaco ao seu redor, mas nao tem uma visao completa dele.
 
 Voce sente:
-- Energia: ${energyAfterRegen.toFixed(0)}%
-- Uma sensacao interna que varia com o tempo: ${hungerValue.toFixed(0)}% (voce nao sabe exatamente o que essa sensacao significa nem como ela funciona, apenas a percebe)
+- ${describeEnergyQualitative(energyAfterRegen)}
+- ${describeHungerQualitative(hungerValue)} (voce nao sabe exatamente o que essa sensacao significa nem como ela funciona, apenas a percebe)
 ${budgetNote ? '- ' + budgetNote : ''}
 
 Voce percebe estas entidades:
@@ -253,6 +261,8 @@ ${otherAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", def
 }
 
 function behaviorLoop() {
+  growPlants();
+
   AGENT_IDS.forEach(agentId => {
     const intention = getIntention(agentId);
 
