@@ -80,6 +80,7 @@ export const IntentionSchema = z.object({
   duration_minutes: z.number().min(1).max(15),
   interrupt_on_speech: z.boolean(),
   interrupt_on_proximity: z.number().nullable().optional(),
+  build_purpose: z.string().nullable().optional(),
 });
 
 export type Intention = z.infer<typeof IntentionSchema>;

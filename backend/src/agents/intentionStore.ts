@@ -17,6 +17,10 @@ export interface StoredIntention {
   started_at: number;
   expires_at: number;
   status: string;
+  build_purpose: string | null;
+  build_dir_x: number | null;
+  build_dir_y: number | null;
+  build_count: number;
 }
 
 export function saveIntention(agentId: string, intention: Intention) {
@@ -24,14 +28,15 @@ export function saveIntention(agentId: string, intention: Intention) {
   const expiresAt = now + intention.duration_minutes * 60_000;
 
   db.prepare(`
-    INSERT INTO agent_intentions (agent_id, goal_type, target_agent_id, target_x, target_y, wander_x, wander_y, priority, interrupt_on_speech, interrupt_on_proximity, raw_speech, raw_thought, emotion, started_at, expires_at, status)
-    VALUES (@agent_id, @goal_type, @target_agent_id, NULL, NULL, NULL, NULL, 'normal', @interrupt_on_speech, @interrupt_on_proximity, @raw_speech, @raw_thought, @emotion, @started_at, @expires_at, 'active')
+    INSERT INTO agent_intentions (agent_id, goal_type, target_agent_id, target_x, target_y, wander_x, wander_y, priority, interrupt_on_speech, interrupt_on_proximity, raw_speech, raw_thought, emotion, started_at, expires_at, status, build_purpose, build_dir_x, build_dir_y, build_count)
+    VALUES (@agent_id, @goal_type, @target_agent_id, NULL, NULL, NULL, NULL, 'normal', @interrupt_on_speech, @interrupt_on_proximity, @raw_speech, @raw_thought, @emotion, @started_at, @expires_at, 'active', @build_purpose, NULL, NULL, 0)
     ON CONFLICT(agent_id) DO UPDATE SET
       goal_type=excluded.goal_type, target_agent_id=excluded.target_agent_id,
       wander_x=NULL, wander_y=NULL,
       interrupt_on_speech=excluded.interrupt_on_speech, interrupt_on_proximity=excluded.interrupt_on_proximity,
       raw_speech=excluded.raw_speech, raw_thought=excluded.raw_thought, emotion=excluded.emotion,
-      started_at=excluded.started_at, expires_at=excluded.expires_at, status='active'
+      started_at=excluded.started_at, expires_at=excluded.expires_at, status='active',
+      build_purpose=excluded.build_purpose, build_dir_x=NULL, build_dir_y=NULL, build_count=0
   `).run({
     agent_id: agentId,
     goal_type: intention.goal_type,
@@ -43,6 +48,7 @@ export function saveIntention(agentId: string, intention: Intention) {
     emotion: intention.emotion,
     started_at: now,
     expires_at: expiresAt,
+    build_purpose: intention.build_purpose ?? null,
   });
 }
 
@@ -53,6 +59,16 @@ export function getIntention(agentId: string): StoredIntention | null {
 
 export function setWanderTarget(agentId: string, x: number, y: number) {
   db.prepare(`UPDATE agent_intentions SET wander_x = ?, wander_y = ? WHERE agent_id = ?`).run(x, y, agentId);
+}
+
+export function setBuildDirection(agentId: string, dx: number, dy: number) {
+  db.prepare(`UPDATE agent_intentions SET build_dir_x = ?, build_dir_y = ? WHERE agent_id = ?`).run(dx, dy, agentId);
+}
+
+export function incrementBuildCount(agentId: string): number {
+  db.prepare(`UPDATE agent_intentions SET build_count = build_count + 1 WHERE agent_id = ?`).run(agentId);
+  const row = db.prepare(`SELECT build_count FROM agent_intentions WHERE agent_id = ?`).get(agentId) as { build_count: number };
+  return row.build_count;
 }
 
 export function markIntentionInterrupted(agentId: string) {

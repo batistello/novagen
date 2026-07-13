@@ -218,6 +218,17 @@ function renderWorldObjects(objects) {
         return;
       }
 
+      if (obj.type === 'wood_piece' || obj.type === 'stone_piece') {
+        const isWood = obj.type === 'wood_piece';
+        const piece = new PIXI.Graphics();
+        piece.beginFill(isWood ? 0x8b5a2b : 0x7f8c8d, 0.9).lineStyle(1, isWood ? 0x5a3a1a : 0x4d5656);
+        piece.drawRoundedRect(-10, -5, 20, 10, 2);
+        piece.endFill();
+        piece.x = sx;
+        piece.y = sy;
+        worldLayer.addChild(piece);
+        return;
+      }
       const category = shapeCategory(obj.type);
       const shape = new PIXI.Graphics();
       shape.beginFill(color, 0.85).lineStyle(1.5, 0x000000);

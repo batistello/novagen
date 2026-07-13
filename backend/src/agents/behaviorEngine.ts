@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { getIntention, setWanderTarget, isIntentionExpiredOrInterrupted, StoredIntention } from './intentionStore';
+import { getIntention, setWanderTarget, isIntentionExpiredOrInterrupted, StoredIntention, setBuildDirection, incrementBuildCount } from './intentionStore';
 import { isNearGrass, tryConsumeFood, GRASS_LOCATION } from './hungerSystem';
 import { findNearbyResource, tryGatherResource, consumeForBuild } from './resourceSystem';
 import { broadcastEvent, broadcastFullState } from '../ws/server';
@@ -85,18 +85,15 @@ function pickWanderTarget(agentId: string, intention: StoredIntention) {
   return { x: wx, y: wy };
 }
 
-function createWorldObject(agentId: string) {
-  const state = loadState(agentId);
-  const shapes = ['square', 'circle', 'triangle', 'pilar', 'bloco'];
-  const colors = agentId === 'blue' ? ['blue', 'roxo', 'verde'] : ['red', 'darkred', 'preto'];
-  const shape = shapes[Math.floor(Math.random() * shapes.length)];
-  const color = colors[Math.floor(Math.random() * colors.length)];
-  const offsetX = state.x + (Math.random() - 0.5) * 20;
-  const offsetY = state.y + (Math.random() - 0.5) * 20;
+function createWorldObject(agentId: string, material: string, x: number, y: number, purpose: string | null) {
+  const typeByMaterial: Record<string, string> = { wood: 'wood_piece', stone: 'stone_piece' };
+  const colorByMaterial: Record<string, string> = { wood: '#8b5a2b', stone: '#7f8c8d' };
+  const type = typeByMaterial[material] ?? 'bloco';
+  const color = colorByMaterial[material] ?? '#888888';
 
   db.prepare(
-    `INSERT INTO world_objects (created_by, type, x, y, color, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(agentId, shape, offsetX, offsetY, color, Date.now());
+    `INSERT INTO world_objects (created_by, type, x, y, color, label, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(agentId, type, x, y, color, purpose, Date.now());
 }
 
 function distanceBetween(agentId: string, otherId: string): number {
@@ -192,9 +189,22 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
       break;
     }
     case 'build': {
+      const self = loadState(agentId);
+      let dirX = intention.build_dir_x;
+      let dirY = intention.build_dir_y;
+      if (dirX == null || dirY == null) {
+        const angle = Math.random() * Math.PI * 2;
+        dirX = Math.cos(angle);
+        dirY = Math.sin(angle);
+        setBuildDirection(agentId, dirX, dirY);
+      }
+      const step = incrementBuildCount(agentId);
+      const placeX = self.x + dirX * step * 6;
+      const placeY = self.y + dirY * step * 6;
+
       const materialResult = consumeForBuild(agentId);
-      if (materialResult.success) {
-        createWorldObject(agentId);
+      if (materialResult.success && materialResult.used) {
+        createWorldObject(agentId, materialResult.used, placeX, placeY, intention.build_purpose);
         actionType = 'create_object';
         broadcastFullState();
       } else {
