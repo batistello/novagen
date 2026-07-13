@@ -91,28 +91,57 @@ async function think(agentId: string) {
     const traits = loadTraits(agentId);
     const recentMemory = getRecentMemoryFor(agentId, 15);
     const otherAgentIds = AGENT_IDS.filter(id => id !== agentId);
+
+    function compassDirection(dx: number, dy: number): string {
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      const dirs = ['leste', 'sudeste', 'sul', 'sudoeste', 'oeste', 'noroeste', 'norte', 'nordeste'];
+      const idx = Math.round(((angle + 360) % 360) / 45) % 8;
+      return dirs[idx];
+    }
+
     const othersText = otherAgentIds.map(otherId => {
       const otherState = loadState(otherId);
       const otherName = AGENT_NAMES[otherId];
-      const dist = Math.round(Math.sqrt((state.x - otherState.x) ** 2 + (state.y - otherState.y) ** 2));
-      return `  - ${otherName} (id "${otherId}"): posicao (${otherState.x.toFixed(0)}, ${otherState.y.toFixed(0)}), distancia ${dist} unidades`;
+      const dx = otherState.x - state.x;
+      const dy = otherState.y - state.y;
+      const dist = Math.round(Math.sqrt(dx * dx + dy * dy));
+      const dir = compassDirection(dx, dy);
+      return `  - ${otherName} (id "${otherId}"): a ${dist} metros, ao ${dir}`;
     }).join('\n');
 
-    const existingObjects = db.prepare(
-      `SELECT id, type, x, y, color, label FROM world_objects WHERE removed_at IS NULL ORDER BY created_at DESC LIMIT 15`
+    const VISION_RADIUS = 70;
+    const nearbyObjectsRaw = db.prepare(
+      `SELECT id, type, x, y, color, label FROM world_objects WHERE removed_at IS NULL ORDER BY created_at DESC LIMIT 60`
     ).all() as { id: number; type: string; x: number; y: number; color: string | null; label: string | null }[];
-    const objectsText = existingObjects.length > 0
-      ? existingObjects.map(o => `  - id ${o.id}: ${o.type} em (${o.x.toFixed(0)}, ${o.y.toFixed(0)})`).join('\n')
-      : '  (nenhum objeto existe no mundo ainda)';
+    const visibleObjects = nearbyObjectsRaw
+      .map(o => {
+        const dx = o.x - state.x;
+        const dy = o.y - state.y;
+        const dist = Math.round(Math.sqrt(dx * dx + dy * dy));
+        return { ...o, dist, dir: compassDirection(dx, dy) };
+      })
+      .filter(o => o.dist <= VISION_RADIUS)
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, 8);
+    const objectsText = visibleObjects.length > 0
+      ? visibleObjects.map(o => `  - ${o.type}${o.label ? ` "${o.label}"` : ''} (id ${o.id}): a ${o.dist} metros, ao ${o.dir}`).join('\n')
+      : '  (nada visivel por perto)';
 
-    const worldSummary = `O mundo e um quadrado. Eixo X: negativo = oeste (esquerda), positivo = leste (direita). Eixo Y: negativo = norte (voce esta mais para CIMA na tela), positivo = sul (voce esta mais para BAIXO na tela). O centro e (0,0).
-Sua posicao atual: (${state.x.toFixed(0)}, ${state.y.toFixed(0)}).
-Existem outras ${otherAgentIds.length} entidades neste mundo alem de voce:
-${othersText}
-Se sua intencao for "approach" ou "move_away", defina "target_agent_id" com o id exato (${otherAgentIds.map(id => `"${id}"`).join(' ou ')}) da entidade que deseja como alvo.
-Objetos existentes:
+    const worldSummary = `Voce percebe o espaco ao seu redor, mas nao tem uma visao completa dele.
+
+Voce sente:
+- Energia: ${energyAfterRegen.toFixed(0)}%
+${budgetNote ? '- ' + budgetNote : ''}
+
+Voce percebe estas entidades:
+${otherAgentIds.length > 0 ? othersText : '  (nenhuma entidade percebida por perto)'}
+
+Voce ve estes objetos proximos:
 ${objectsText}
-${budgetNote}`;
+
+Voce nao sabe o que existe alem do que consegue perceber aqui.
+${otherAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", defina "target_agent_id" com o id exato (${otherAgentIds.map(id => `"${id}"`).join(' ou ')}) da entidade que deseja como alvo.` : ''}`;
+
 
     const ctx: AgentContext = {
       identity: { id: agentId, name: AGENT_NAMES[agentId], color: AGENT_COLORS[agentId] },
