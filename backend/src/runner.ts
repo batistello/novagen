@@ -9,6 +9,8 @@ import { buildIntentionPrompt, AgentContext } from './agents/systemPromptBuilder
 import { getTokenBudgetStatus, recordTokenUsage } from './agents/tokenBudget';
 import { getRecentMemoryFor, recordEvent } from './agents/memory';
 import { getMemoriesByCategory } from './agents/memoryTiers';
+import { updateBelief, getBeliefs } from './agents/theoryOfMind';
+import { proposeContract, getPendingContractsFor, respondToContract, logFirstProposalIfNeeded } from './agents/socialContracts';
 import { callGroq } from './llm/groqClient';
 import { callGemini } from './llm/geminiClient';
 
@@ -88,7 +90,7 @@ async function think(agentId: string) {
         });
 
         const { recordDiaryEntry } = await import('./agents/worldDiary');
-        recordDiaryEntry(`${AGENT_NAMES[agentId]} morreu de fome.`);
+        recordDiaryEntry(`${AGENT_NAMES[agentId]} morreu de fome.`, 'MORTE');
       }
 
       const { broadcastEvent: bedeath, broadcastFullState: bfsdeath } = await import('./ws/server');
@@ -133,6 +135,14 @@ async function think(agentId: string) {
     const recentMemory = getRecentMemoryFor(agentId, 15);
     const episodicMemory = getMemoriesByCategory(agentId, 'episodic', 6);
     const socialMemory = getMemoriesByCategory(agentId, 'social', 6);
+    const beliefs = getBeliefs(agentId);
+    const beliefsText = beliefs.length > 0
+      ? `Sua opiniao formada sobre as outras entidades, baseada no que voce ja viveu:\n${beliefs.map(b => `  - Sobre ${AGENT_NAMES[b.about_agent_id] ?? b.about_agent_id}: ${b.belief_text}`).join('\n')}`
+      : '';
+    const pendingContracts = getPendingContractsFor(agentId);
+    const contractsText = pendingContracts.length > 0
+      ? `Alguem propos um acordo a voce, ainda sem resposta:\n${pendingContracts.map(c => `  - id ${c.id}, proposto por ${AGENT_NAMES[c.proposed_by] ?? c.proposed_by}: "${c.terms}"`).join('\n')}\nSe quiser responder, preencha "contract_response_id" com o id exato e "contract_response_accept" com true ou false.`
+      : '';
     const allStates = db.prepare(`SELECT agent_id, status FROM agent_state`).all() as { agent_id: string; status: string }[];
     const aliveIds = new Set(allStates.filter(s => s.status !== 'dead').map(s => s.agent_id));
     const otherAgentIds = AGENT_IDS.filter(id => id !== agentId && aliveIds.has(id));
@@ -209,6 +219,8 @@ ${grassLine}
 
 ${episodicMemory.length > 0 ? `Voce se lembra de coisas que ja viveu:\n${episodicMemory.map(m => `  - ${m}`).join('\n')}` : ''}
 ${socialMemory.length > 0 ? `Voce se lembra de coisas que percebeu sobre as outras entidades:\n${socialMemory.map(m => `  - ${m}`).join('\n')}` : ''}
+${beliefsText}
+${contractsText}
 Voce nao sabe o que existe alem do que consegue perceber aqui.
 ${otherAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", defina "target_agent_id" com o id exato (${otherAgentIds.map(id => `"${id}"`).join(' ou ')}) da entidade que deseja como alvo.` : ''}`;
 
@@ -233,6 +245,19 @@ ${otherAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", def
 
     const intention = parseIntention(llmResult.raw);
     saveIntention(agentId, intention);
+
+    if (intention.belief_about_agent_id && intention.belief_text) {
+      updateBelief(agentId, intention.belief_about_agent_id, intention.belief_text);
+    }
+
+    if (intention.contract_proposal && intention.contract_proposal_to) {
+      proposeContract(agentId, intention.contract_proposal_to, intention.contract_proposal);
+      logFirstProposalIfNeeded(agentId, intention.contract_proposal);
+    }
+
+    if (intention.contract_response_id != null && intention.contract_response_accept != null) {
+      respondToContract(intention.contract_response_id, intention.contract_response_accept);
+    }
     recordTokenUsage(agentId, llmResult.totalTokens);
 
     if (intention.speech) {

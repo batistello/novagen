@@ -202,7 +202,7 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
         if (intention.build_purpose) {
           const AGENT_NAMES_DIARY: Record<string, string> = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
           const { recordDiaryEntry } = require('./worldDiary');
-          recordDiaryEntry(`${AGENT_NAMES_DIARY[agentId] ?? agentId} comecou a construir: ${intention.build_purpose}`);
+          recordDiaryEntry(`${AGENT_NAMES_DIARY[agentId] ?? agentId} comecou a construir: ${intention.build_purpose}`, 'CONSTRUCAO');
         }
       }
       const step = incrementBuildCount(agentId);

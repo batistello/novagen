@@ -11,13 +11,15 @@ export function getCurrentDay(): number {
   return Math.floor(elapsedMs / (1000 * 60 * 60 * 24)) + 1;
 }
 
-export function recordDiaryEntry(content: string) {
+export type DiaryTag = 'PRIMEIRO_ENCONTRO' | 'ALIMENTACAO' | 'CONSTRUCAO' | 'MORTE' | 'COOPERACAO' | 'CONFLITO' | 'TROCA' | 'OUTRO';
+
+export function recordDiaryEntry(content: string, tag: DiaryTag = 'OUTRO') {
   const day = getCurrentDay();
-  db.prepare(`INSERT INTO world_diary (day, content, created_at) VALUES (?, ?, ?)`).run(day, content, Date.now());
+  db.prepare(`INSERT INTO world_diary (day, content, created_at, tag) VALUES (?, ?, ?, ?)`).run(day, content, Date.now(), tag);
 }
 
-export function getDiaryEntries(limit: number = 30): { day: number; content: string }[] {
-  return db.prepare(`SELECT day, content FROM world_diary ORDER BY id DESC LIMIT ?`).all(limit) as { day: number; content: string }[];
+export function getDiaryEntries(limit: number = 30): { day: number; content: string; tag: string }[] {
+  return db.prepare(`SELECT day, content, tag FROM world_diary ORDER BY id DESC LIMIT ?`).all(limit) as { day: number; content: string; tag: string }[];
 }
 
 const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
@@ -35,5 +37,5 @@ export function checkAndRecordFirstMeeting(agentA: string, agentB: string, dista
   if (existing) return;
 
   db.prepare(`INSERT INTO agent_meetings (pair_key, met_at) VALUES (?, ?)`).run(key, Date.now());
-  recordDiaryEntry(`${AGENT_NAMES[agentA] ?? agentA} encontrou ${AGENT_NAMES[agentB] ?? agentB}.`);
+  recordDiaryEntry(`${AGENT_NAMES[agentA] ?? agentA} encontrou ${AGENT_NAMES[agentB] ?? agentB}.`, 'PRIMEIRO_ENCONTRO');
 }

@@ -81,6 +81,12 @@ export const IntentionSchema = z.object({
   interrupt_on_speech: z.boolean(),
   interrupt_on_proximity: z.number().nullable().optional(),
   build_purpose: z.string().nullable().optional(),
+  belief_about_agent_id: z.string().nullable().optional(),
+  belief_text: z.string().nullable().optional(),
+  contract_proposal: z.string().nullable().optional(),
+  contract_proposal_to: z.string().nullable().optional(),
+  contract_response_id: z.number().nullable().optional(),
+  contract_response_accept: z.boolean().nullable().optional(),
 });
 
 export type Intention = z.infer<typeof IntentionSchema>;

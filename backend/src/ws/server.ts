@@ -49,7 +49,7 @@ function computeRestingMap(states: { agent_id: string; energy: number }[]): Reco
 }
 
 function getWorldDiary(limit: number = 20) {
-  return db.prepare(`SELECT day, content FROM world_diary ORDER BY id DESC LIMIT ?`).all(limit);
+  return db.prepare(`SELECT day, content, tag FROM world_diary ORDER BY id DESC LIMIT ?`).all(limit);
 }
 
 function getFullState() {

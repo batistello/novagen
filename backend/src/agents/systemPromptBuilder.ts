@@ -163,7 +163,16 @@ Responda APENAS em JSON valido no formato:
   "duration_minutes": 5,
   "interrupt_on_speech": true,
   "interrupt_on_proximity": null,
-  "build_purpose": null
+  "build_purpose": null,
+  "belief_about_agent_id": null,
+  "belief_text": null,
+  "contract_proposal": null,
+  "contract_proposal_to": null,
+  "contract_response_id": null,
+  "contract_response_accept": null
 }
+Se, apos o que voce viveu e observou, voce formou ou revisou uma opiniao subjetiva sobre outra entidade especifica (ex: "parece egoista", "parece confiavel", "esta escondendo algo"), preencha "belief_about_agent_id" com o id dela e "belief_text" com uma frase curta descrevendo essa opiniao. Essa opiniao fica guardada e volta a aparecer para voce em ciclos futuros, influenciando como voce a ve. So preencha isso quando realmente formar ou mudar uma opiniao; na maioria dos ciclos, deixe ambos como null.
+Voce tambem pode propor um acordo a outra entidade, se fizer sentido para sua intencao (ex: "vou dividir a comida com voce" ou "nao vou me aproximar da sua area"). Para propor, preencha "contract_proposal" com os termos e "contract_proposal_to" com o id da entidade. Isso e apenas uma promessa verbal; nada garante que sera cumprida, nem por voce nem pela outra parte.
+Se alguem propos um acordo a voce (voce vera isso na secao de percepcao, se houver), pode responder preenchendo "contract_response_id" com o id exato do acordo e "contract_response_accept" com true (aceitar) ou false (recusar).
 Nao inclua nada fora desse JSON.`;
 }

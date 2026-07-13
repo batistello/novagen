@@ -116,7 +116,7 @@ export function tryConsumeFood(agentId: string): boolean {
   if (!alreadyLogged) {
     db.prepare(`INSERT INTO world_meta (key, value) VALUES (?, ?)`).run(firstMealKey, String(now));
     const { recordDiaryEntry } = require('./worldDiary');
-    recordDiaryEntry(`Foi consumido o primeiro alimento por ${AGENT_NAMES[agentId] ?? agentId}.`);
+    recordDiaryEntry(`Foi consumido o primeiro alimento por ${AGENT_NAMES[agentId] ?? agentId}.`, 'ALIMENTACAO');
   }
 
   return true;

@@ -433,6 +433,17 @@ function updateHungerStatus(states, agents) {
   }).join(' &nbsp;|&nbsp; ');
 }
 
+const DIARY_TAG_COLORS = {
+  PRIMEIRO_ENCONTRO: '#3498db',
+  ALIMENTACAO: '#2ecc71',
+  CONSTRUCAO: '#e67e22',
+  MORTE: '#7f8c8d',
+  COOPERACAO: '#1abc9c',
+  CONFLITO: '#e74c3c',
+  TROCA: '#9b59b6',
+  OUTRO: '#555',
+};
+
 function updateDiaryPanel(diary) {
   const el = document.getElementById('diary-panel');
   if (!el || !diary) return;
@@ -440,7 +451,11 @@ function updateDiaryPanel(diary) {
     el.innerHTML = '<em style="color:#666;">Nenhum evento registrado ainda.</em>';
     return;
   }
-  el.innerHTML = diary.map(entry => `<div style="margin-bottom:6px;"><strong>Dia ${entry.day}</strong> — ${entry.content}</div>`).join('');
+  el.innerHTML = diary.map(entry => {
+    const color = DIARY_TAG_COLORS[entry.tag] || DIARY_TAG_COLORS.OUTRO;
+    const tagLabel = entry.tag && entry.tag !== 'OUTRO' ? `<span style="color:${color}; font-size:9px; border:1px solid ${color}; border-radius:3px; padding:0 4px; margin-right:4px;">${entry.tag}</span>` : '';
+    return `<div style="margin-bottom:6px;"><strong>Dia ${entry.day}</strong> ${tagLabel}— ${entry.content}</div>`;
+  }).join('');
 }
 
 
