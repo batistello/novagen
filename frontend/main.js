@@ -7,6 +7,38 @@ const WS_URL = isSecure
 const app = new PIXI.Application({ width: WORLD_SIZE, height: WORLD_SIZE, backgroundColor: 0xffffff });
 document.getElementById('app').appendChild(app.view);
 
+const ASSET_PATHS = {
+  ground: 'assets/ground.jpg',
+  tree: 'assets/tree.png',
+  grass: 'assets/grass.png',
+  water: 'assets/water.png',
+  agent_blue: 'assets/agent_blue.png',
+  agent_red: 'assets/agent_red.png',
+  agent_green: 'assets/agent_green.png',
+};
+
+const assetTextures = {};
+let assetsReady = false;
+
+async function loadAssets() {
+  for (const [key, path] of Object.entries(ASSET_PATHS)) {
+    try {
+      assetTextures[key] = await PIXI.Assets.load(path);
+    } catch (e) {
+      console.error('[assets] falha ao carregar', path, e);
+    }
+  }
+  assetsReady = true;
+
+  if (assetTextures.ground) {
+    const groundSprite = new PIXI.Sprite(assetTextures.ground);
+    groundSprite.width = WORLD_SIZE;
+    groundSprite.height = WORLD_SIZE;
+    app.stage.addChildAt(groundSprite, 0);
+  }
+}
+loadAssets().then(() => connect());
+
 const worldLayer = new PIXI.Container();
 const agentLayer = new PIXI.Container();
 const bubbleLayer = new PIXI.Container();
@@ -32,11 +64,23 @@ function worldToScreen(x, y) {
 
 function createAgentSprite(agentId, color) {
   if (agentSprites[agentId]) return agentSprites[agentId];
-  const circle = new PIXI.Graphics();
-  circle.beginFill(color).lineStyle(2, 0xffffff).drawCircle(0, 0, 12).endFill();
-  agentLayer.addChild(circle);
-  agentSprites[agentId] = circle;
-  return circle;
+
+  const assetKey = 'agent_' + agentId;
+  let sprite;
+
+  if (assetTextures[assetKey]) {
+    sprite = new PIXI.Sprite(assetTextures[assetKey]);
+    sprite.anchor.set(0.5);
+    sprite.width = 73;
+    sprite.height = 73;
+  } else {
+    sprite = new PIXI.Graphics();
+    sprite.beginFill(color).lineStyle(2, 0xffffff).drawCircle(0, 0, 12).endFill();
+  }
+
+  agentLayer.addChild(sprite);
+  agentSprites[agentId] = sprite;
+  return sprite;
 }
 
 const lastRealUpdate = {};
@@ -167,44 +211,49 @@ function renderWorldObjects(objects) {
       }
 
       if (obj.type === 'tree') {
-        const tree = new PIXI.Graphics();
-        tree.beginFill(0x1e5631, 0.9).lineStyle(1, 0x0f2e1a);
-        tree.moveTo(0, -12).lineTo(8, 6).lineTo(-8, 6).closePath();
-        tree.endFill();
-        tree.x = sx;
-        tree.y = sy;
-        worldLayer.addChild(tree);
+        if (assetTextures.tree) {
+          const tree = new PIXI.Sprite(assetTextures.tree);
+          tree.anchor.set(0.5, 1);
+          tree.width = 96;
+          tree.height = 96;
+          tree.x = sx;
+          tree.y = sy;
+          worldLayer.addChild(tree);
+        }
         return;
       }
       if (obj.type === 'rock') {
-        const rock = new PIXI.Graphics();
-        rock.beginFill(0x7f8c8d, 0.9).lineStyle(1, 0x4d5656);
-        rock.moveTo(-8, 4).lineTo(-4, -6).lineTo(4, -7).lineTo(9, 3).lineTo(2, 7).closePath();
-        rock.endFill();
+        const rock = new PIXI.Text('🪨', { fontSize: 14 });
+        rock.anchor.set(0.5);
         rock.x = sx;
         rock.y = sy;
         worldLayer.addChild(rock);
         return;
       }
       if (obj.type === 'water_source') {
-        const water = new PIXI.Graphics();
-        water.beginFill(0x3498db, 0.7).lineStyle(1, 0x1f618d);
-        water.drawCircle(0, 0, 9);
-        water.endFill();
-        water.x = sx;
-        water.y = sy;
-        worldLayer.addChild(water);
+        if (assetTextures.water) {
+          const water = new PIXI.Sprite(assetTextures.water);
+          water.anchor.set(0.5);
+          water.width = 84;
+          water.height = 84;
+          water.x = sx;
+          water.y = sy;
+          worldLayer.addChild(water);
+        }
         return;
       }
       if (obj.type === 'grass_patch') {
-        const grass = new PIXI.Graphics();
-        grass.beginFill(0x27ae60, 0.85).lineStyle(1, 0x1e8449);
-        const s = 9;
-        grass.moveTo(0, -s).lineTo(s, 0).lineTo(0, s).lineTo(-s, 0).closePath();
-        grass.endFill();
-        grass.x = sx;
-        grass.y = sy;
-        worldLayer.addChild(grass);
+        if (assetTextures.grass) {
+          const grass = new PIXI.Sprite(assetTextures.grass);
+          grass.anchor.set(0.5);
+          const stageScale = { seed: 0.4, sprout: 0.6, young: 0.8, adult: 1.0 };
+          const scale = stageScale[obj.stage] || 0.5;
+          grass.width = 28 * scale;
+          grass.height = 28 * scale;
+          grass.x = sx;
+          grass.y = sy;
+          worldLayer.addChild(grass);
+        }
         return;
       }
       if (obj.type === 'text') {
@@ -609,4 +658,4 @@ if (diaryToggleBtn) {
   });
 }
 
-connect();
+

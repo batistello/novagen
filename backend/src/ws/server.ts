@@ -55,7 +55,12 @@ function getWorldDiary(limit: number = 20) {
 function getFullState() {
   const agents = db.prepare(`SELECT * FROM agents`).all();
   const states = db.prepare(`SELECT * FROM agent_state`).all() as { agent_id: string; energy: number }[];
-  const objects = db.prepare(`SELECT * FROM world_objects WHERE removed_at IS NULL`).all();
+  const objects = db.prepare(`
+    SELECT wo.*, fs.stage as stage
+    FROM world_objects wo
+    LEFT JOIN food_slots fs ON fs.world_object_id = wo.id
+    WHERE wo.removed_at IS NULL
+  `).all();
   const lastSpeeches = getLastSpeeches();
   const resting = computeRestingMap(states);
   const diary = getWorldDiary();
