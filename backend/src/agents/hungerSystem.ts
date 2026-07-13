@@ -58,6 +58,15 @@ export function tryConsumeFood(agentId: string): boolean {
 
   recordCategorizedMemory(agentId, 'episodic', 'Consumi algo daquela area verde.');
 
+  const AGENT_NAMES_DIARY: Record<string, string> = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
+  const firstMealKey = `first_meal_${agentId}`;
+  const alreadyLogged = db.prepare(`SELECT key FROM world_meta WHERE key = ?`).get(firstMealKey);
+  if (!alreadyLogged) {
+    db.prepare(`INSERT INTO world_meta (key, value) VALUES (?, ?)`).run(firstMealKey, String(Date.now()));
+    const { recordDiaryEntry } = require('./worldDiary');
+    recordDiaryEntry(`Foi consumido o primeiro alimento por ${AGENT_NAMES_DIARY[agentId] ?? agentId}.`);
+  }
+
   const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
   const selfState = db.prepare(`SELECT x, y FROM agent_state WHERE agent_id = ?`).get(agentId) as { x: number; y: number };
   const others = db.prepare(`SELECT agent_id, x, y, status FROM agent_state WHERE agent_id != ? AND status != 'dead'`).all(agentId) as { agent_id: string; x: number; y: number; status: string }[];

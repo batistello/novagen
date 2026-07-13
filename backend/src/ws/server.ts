@@ -48,12 +48,17 @@ function computeRestingMap(states: { agent_id: string; energy: number }[]): Reco
   return map;
 }
 
+function getWorldDiary(limit: number = 20) {
+  return db.prepare(`SELECT day, content FROM world_diary ORDER BY id DESC LIMIT ?`).all(limit);
+}
+
 function getFullState() {
   const agents = db.prepare(`SELECT * FROM agents`).all();
   const states = db.prepare(`SELECT * FROM agent_state`).all() as { agent_id: string; energy: number }[];
   const objects = db.prepare(`SELECT * FROM world_objects WHERE removed_at IS NULL`).all();
   const lastSpeeches = getLastSpeeches();
   const resting = computeRestingMap(states);
+  const diary = getWorldDiary();
 
   return {
     type: 'full_state',
@@ -62,6 +67,7 @@ function getFullState() {
     objects,
     lastSpeeches,
     resting,
+    diary,
   };
 }
 

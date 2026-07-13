@@ -396,6 +396,7 @@ function applyFullState(msg) {
     }
   });
   updateHungerStatus(msg.states, msg.agents);
+  updateDiaryPanel(msg.diary);
   if (msg.resting) {
     Object.entries(msg.resting).forEach(([agentId, isResting]) => {
       setSleepIndicator(agentId, isResting);
@@ -430,6 +431,16 @@ function updateHungerStatus(states, agents) {
     const label = isDead ? '(morto)' : `${hunger}% saciado`;
     return `<span style="color:${color};">${name}</span>: ${label}`;
   }).join(' &nbsp;|&nbsp; ');
+}
+
+function updateDiaryPanel(diary) {
+  const el = document.getElementById('diary-panel');
+  if (!el || !diary) return;
+  if (diary.length === 0) {
+    el.innerHTML = '<em style="color:#666;">Nenhum evento registrado ainda.</em>';
+    return;
+  }
+  el.innerHTML = diary.map(entry => `<div style="margin-bottom:6px;"><strong>Dia ${entry.day}</strong> — ${entry.content}</div>`).join('');
 }
 
 
@@ -573,6 +584,14 @@ function connect() {
       }
     }
   };
+}
+
+const diaryToggleBtn = document.getElementById('diary-toggle');
+if (diaryToggleBtn) {
+  diaryToggleBtn.addEventListener('click', () => {
+    const panel = document.getElementById('diary-panel');
+    if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
 }
 
 connect();

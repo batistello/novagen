@@ -197,6 +197,12 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
         dirX = Math.cos(angle);
         dirY = Math.sin(angle);
         setBuildDirection(agentId, dirX, dirY);
+
+        if (intention.build_purpose) {
+          const AGENT_NAMES_DIARY: Record<string, string> = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
+          const { recordDiaryEntry } = require('./worldDiary');
+          recordDiaryEntry(`${AGENT_NAMES_DIARY[agentId] ?? agentId} comecou a construir: ${intention.build_purpose}`);
+        }
       }
       const step = incrementBuildCount(agentId);
       const placeX = self.x + dirX * step * 6;

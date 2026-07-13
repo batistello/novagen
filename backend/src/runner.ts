@@ -86,6 +86,9 @@ async function think(agentId: string) {
             recordCategorizedMemory(w.agent_id, 'social', `${AGENT_NAMES[agentId]} parou de se mover e nao respondeu mais.`, agentId);
           }
         });
+
+        const { recordDiaryEntry } = await import('./agents/worldDiary');
+        recordDiaryEntry(`${AGENT_NAMES[agentId]} morreu de fome.`);
       }
 
       const { broadcastEvent: bedeath, broadcastFullState: bfsdeath } = await import('./ws/server');
@@ -133,6 +136,13 @@ async function think(agentId: string) {
     const allStates = db.prepare(`SELECT agent_id, status FROM agent_state`).all() as { agent_id: string; status: string }[];
     const aliveIds = new Set(allStates.filter(s => s.status !== 'dead').map(s => s.agent_id));
     const otherAgentIds = AGENT_IDS.filter(id => id !== agentId && aliveIds.has(id));
+
+    const { checkAndRecordFirstMeeting } = await import('./agents/worldDiary');
+    otherAgentIds.forEach(otherId => {
+      const otherState = loadState(otherId);
+      const distMeet = Math.sqrt((state.x - otherState.x) ** 2 + (state.y - otherState.y) ** 2);
+      checkAndRecordFirstMeeting(agentId, otherId, distMeet);
+    });
 
     function compassDirection(dx: number, dy: number): string {
       const angle = Math.atan2(dy, dx) * (180 / Math.PI);
