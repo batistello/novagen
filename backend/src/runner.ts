@@ -161,7 +161,15 @@ async function think(agentId: string) {
       return dirs[idx];
     }
 
-    const othersText = otherAgentIds.map(otherId => {
+    const VISION_RADIUS = 70;
+
+    const visibleAgentIds = otherAgentIds.filter(otherId => {
+      const otherState = loadState(otherId);
+      const dist = Math.sqrt((otherState.x - state.x) ** 2 + (otherState.y - state.y) ** 2);
+      return dist <= VISION_RADIUS;
+    });
+
+    const othersText = visibleAgentIds.map(otherId => {
       const otherState = loadState(otherId);
       const otherName = AGENT_NAMES[otherId];
       const dx = otherState.x - state.x;
@@ -170,8 +178,6 @@ async function think(agentId: string) {
       const dir = compassDirection(dx, dy);
       return `  - ${otherName} (id "${otherId}"): a ${dist} metros, ao ${dir}`;
     }).join('\n');
-
-    const VISION_RADIUS = 70;
     const nearbyObjectsRaw = db.prepare(
       `SELECT id, type, x, y, color, label FROM world_objects WHERE removed_at IS NULL ORDER BY created_at DESC LIMIT 60`
     ).all() as { id: number; type: string; x: number; y: number; color: string | null; label: string | null }[];
@@ -211,7 +217,7 @@ Voce sente:
 ${budgetNote ? '- ' + budgetNote : ''}
 
 Voce percebe estas entidades:
-${otherAgentIds.length > 0 ? othersText : '  (nenhuma entidade percebida por perto)'}
+${visibleAgentIds.length > 0 ? othersText : '  (nenhuma entidade percebida por perto)'}
 
 Voce ve estes objetos proximos:
 ${objectsText}
@@ -222,7 +228,7 @@ ${socialMemory.length > 0 ? `Voce se lembra de coisas que percebeu sobre as outr
 ${beliefsText}
 ${contractsText}
 Voce nao sabe o que existe alem do que consegue perceber aqui.
-${otherAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", defina "target_agent_id" com o id exato (${otherAgentIds.map(id => `"${id}"`).join(' ou ')}) da entidade que deseja como alvo.` : ''}`;
+${visibleAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", defina "target_agent_id" com o id exato (${visibleAgentIds.map(id => `"${id}"`).join(' ou ')}) da entidade que deseja como alvo.` : ''}`;
 
 
     const ctx: AgentContext = {
