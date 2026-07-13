@@ -75,7 +75,7 @@ export const IntentionSchema = z.object({
   speech: z.string().nullable(),
   thought: z.string(),
   emotion: z.string(),
-  goal_type: z.enum(['explore', 'build', 'approach', 'move_away', 'observe', 'rest']),
+  goal_type: z.enum(['explore', 'build', 'approach', 'move_away', 'observe', 'rest', 'collect']),
   target_agent_id: z.string().nullable().optional(),
   duration_minutes: z.number().min(1).max(15),
   interrupt_on_speech: z.boolean(),

@@ -166,6 +166,17 @@ function renderWorldObjects(objects) {
         return;
       }
 
+      if (obj.type === 'grass_patch') {
+        const grass = new PIXI.Graphics();
+        grass.beginFill(0x27ae60, 0.85).lineStyle(1, 0x1e8449);
+        const s = 9;
+        grass.moveTo(0, -s).lineTo(s, 0).lineTo(0, s).lineTo(-s, 0).closePath();
+        grass.endFill();
+        grass.x = sx;
+        grass.y = sy;
+        worldLayer.addChild(grass);
+        return;
+      }
       if (obj.type === 'text') {
         const text = new PIXI.Text(obj.label || '', {
           fontFamily: 'Arial', fontSize: 12, fill: 0x000000, fontStyle: 'italic',
@@ -215,6 +226,31 @@ function renderWorldObjects(objects) {
 }
 
 const sleepIndicators = {};
+const deadAgents = new Set();
+
+function markAgentDead(agentId) {
+  const sprite = agentSprites[agentId];
+  if (!sprite) return;
+  if (deadAgents.has(agentId)) return;
+  deadAgents.add(agentId);
+
+  if (sleepIndicators[agentId]) {
+    sprite.removeChild(sleepIndicators[agentId]);
+    delete sleepIndicators[agentId];
+  }
+
+  sprite.tint = 0x555555;
+  sprite.alpha = 0.6;
+
+  const marker = new PIXI.Text('†', {
+    fontFamily: 'Arial', fontSize: 16, fill: 0x222222,
+  });
+  marker.anchor.set(0.5, 1);
+  marker.x = 0;
+  marker.y = -14;
+  sprite.addChild(marker);
+}
+
 
 function setSleepIndicator(agentId, resting) {
   const sprite = agentSprites[agentId];
@@ -314,6 +350,9 @@ function applyFullState(msg) {
   });
   msg.states.forEach(state => {
     updateAgentPosition(state.agent_id, state.x, state.y);
+    if (state.status === 'dead') {
+      markAgentDead(state.agent_id);
+    }
   });
   if (msg.resting) {
     Object.entries(msg.resting).forEach(([agentId, isResting]) => {
@@ -374,7 +413,7 @@ function idleWanderTick() {
   Object.keys(agentSprites).forEach(agentId => {
     const sprite = agentSprites[agentId];
     if (!sprite) return;
-    if (sleepIndicators[agentId]) return;
+    if (sleepIndicators[agentId] || deadAgents.has(agentId)) return;
 
     const lastUpdate = lastRealUpdate[agentId] || 0;
     const idleFor = Date.now() - lastUpdate;
@@ -435,7 +474,11 @@ function connect() {
     }
 
     if (msg.type === 'agent_status') {
-      setSleepIndicator(msg.agentId, msg.resting);
+      if (msg.reason === 'dead') {
+        markAgentDead(msg.agentId);
+      } else {
+        setSleepIndicator(msg.agentId, msg.resting);
+      }
     }
     if (msg.type === 'agent_tick') {
       setSleepIndicator(msg.agentId, false);

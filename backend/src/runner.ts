@@ -1,5 +1,6 @@
 import { initSchema, db } from './db';
 import { getTier, PASSIVE_REGEN_PER_MIN, SLEEP_REGEN_PER_MIN } from './agents/energyConfig';
+import { applyHungerDecay } from './agents/hungerSystem';
 import { initWebSocketServer } from './ws/server';
 import { getIntention, saveIntention, isIntentionExpiredOrInterrupted, markIntentionInterrupted } from './agents/intentionStore';
 import { behaviorTick, checkProximityInterrupt } from './agents/behaviorEngine';
@@ -25,7 +26,7 @@ const BEHAVIOR_TICK_MS = 3000;
 
 function loadState(agentId: string) {
   return db.prepare(`SELECT * FROM agent_state WHERE agent_id = ?`).get(agentId) as {
-    agent_id: string; energy: number; x: number; y: number; emotion: string; status: string; last_tick_at: number;
+    agent_id: string; energy: number; hunger: number; x: number; y: number; emotion: string; status: string; last_tick_at: number;
   };
 }
 
@@ -56,6 +57,32 @@ async function think(agentId: string) {
   await previousQueue.catch(() => {});
 
   try {
+    const currentState = loadState(agentId);
+    if (currentState.status === 'dead') {
+      return;
+    }
+
+    const hunger = applyHungerDecay(agentId);
+    const stateAfterHunger = loadState(agentId);
+    if (stateAfterHunger.status === 'dead') {
+      console.log(`[${AGENT_NAMES[agentId]}] morreu de fome.`);
+
+      const alreadyMarked = db.prepare(
+        `SELECT id FROM world_objects WHERE type = 'corpse' AND created_by = ? LIMIT 1`
+      ).get(agentId);
+
+      if (!alreadyMarked) {
+        db.prepare(
+          `INSERT INTO world_objects (created_by, type, x, y, color, label, created_at) VALUES (?, 'corpse', ?, ?, ?, ?, ?)`
+        ).run(agentId, stateAfterHunger.x, stateAfterHunger.y, AGENT_COLORS[agentId], `restos de ${AGENT_NAMES[agentId]}`, Date.now());
+      }
+
+      const { broadcastEvent: bedeath, broadcastFullState: bfsdeath } = await import('./ws/server');
+      bedeath({ type: 'agent_status', agentId, resting: true, reason: 'dead' });
+      bfsdeath();
+      return;
+    }
+
     const energyAfterRegen = applyRegen(agentId);
     const tier = getTier(energyAfterRegen);
 
@@ -90,7 +117,9 @@ async function think(agentId: string) {
     const state = loadState(agentId);
     const traits = loadTraits(agentId);
     const recentMemory = getRecentMemoryFor(agentId, 15);
-    const otherAgentIds = AGENT_IDS.filter(id => id !== agentId);
+    const allStates = db.prepare(`SELECT agent_id, status FROM agent_state`).all() as { agent_id: string; status: string }[];
+    const aliveIds = new Set(allStates.filter(s => s.status !== 'dead').map(s => s.agent_id));
+    const otherAgentIds = AGENT_IDS.filter(id => id !== agentId && aliveIds.has(id));
 
     function compassDirection(dx: number, dy: number): string {
       const angle = Math.atan2(dy, dx) * (180 / Math.PI);
@@ -127,10 +156,17 @@ async function think(agentId: string) {
       ? visibleObjects.map(o => `  - ${o.type}${o.label ? ` "${o.label}"` : ''} (id ${o.id}): a ${o.dist} metros, ao ${o.dir}`).join('\n')
       : '  (nada visivel por perto)';
 
+    const hungerValue = stateAfterHunger.hunger;
+    const distToGrass = Math.round(Math.sqrt((state.x - 0) ** 2 + (state.y - 0) ** 2));
+    const grassLine = distToGrass <= 70
+      ? `  - uma area diferente, com algo verde espalhado pelo chao: a ${distToGrass} metros, ao ${compassDirection(0 - state.x, 0 - state.y)}`
+      : '';
+
     const worldSummary = `Voce percebe o espaco ao seu redor, mas nao tem uma visao completa dele.
 
 Voce sente:
 - Energia: ${energyAfterRegen.toFixed(0)}%
+- Uma sensacao interna que varia com o tempo: ${hungerValue.toFixed(0)}% (voce nao sabe exatamente o que essa sensacao significa nem como ela funciona, apenas a percebe)
 ${budgetNote ? '- ' + budgetNote : ''}
 
 Voce percebe estas entidades:
@@ -138,6 +174,7 @@ ${otherAgentIds.length > 0 ? othersText : '  (nenhuma entidade percebida por per
 
 Voce ve estes objetos proximos:
 ${objectsText}
+${grassLine}
 
 Voce nao sabe o que existe alem do que consegue perceber aqui.
 ${otherAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", defina "target_agent_id" com o id exato (${otherAgentIds.map(id => `"${id}"`).join(' ou ')}) da entidade que deseja como alvo.` : ''}`;

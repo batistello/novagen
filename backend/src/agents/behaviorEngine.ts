@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { getIntention, setWanderTarget, isIntentionExpiredOrInterrupted, StoredIntention } from './intentionStore';
+import { isNearGrass, tryConsumeFood, GRASS_LOCATION } from './hungerSystem';
 import { broadcastEvent, broadcastFullState } from '../ws/server';
 
 const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho' };
@@ -104,7 +105,7 @@ function distanceBetween(agentId: string, otherId: string): number {
 }
 
 function getAllAgentIds(): string[] {
-  return (db.prepare(`SELECT id FROM agents`).all() as { id: string }[]).map(r => r.id);
+  return (db.prepare(`SELECT a.id FROM agents a JOIN agent_state s ON s.agent_id = a.id WHERE s.status != 'dead'`).all() as { id: string }[]).map(r => r.id);
 }
 
 function getOtherAgentIds(agentId: string): string[] {
@@ -196,6 +197,18 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
         broadcastFullState();
       } else {
         actionType = 'observe';
+      }
+      break;
+    }
+    case 'collect': {
+      const self = loadState(agentId);
+      if (isNearGrass(self.x, self.y)) {
+        const success = tryConsumeFood(agentId);
+        actionType = success ? 'collect_success' : 'collect_failed';
+      } else {
+        moveTowards(agentId, GRASS_LOCATION.x, GRASS_LOCATION.y, 6);
+        moved = true;
+        actionType = 'walk';
       }
       break;
     }
