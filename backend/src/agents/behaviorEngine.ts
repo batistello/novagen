@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { getIntention, setWanderTarget, isIntentionExpiredOrInterrupted, StoredIntention, setBuildDirection, incrementBuildCount } from './intentionStore';
 import { isNearGrass, tryConsumeFood, GRASS_LOCATION } from './hungerSystem';
+import { notifyWitnesses } from './memoryTiers';
 import { findNearbyResource, tryGatherResource, consumeForBuild } from './resourceSystem';
 import { broadcastEvent, broadcastFullState } from '../ws/server';
 
@@ -213,8 +214,18 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
         createWorldObject(agentId, materialResult.used, placeX, placeY, intention.build_purpose);
         actionType = 'create_object';
         broadcastFullState();
+        notifyWitnesses(
+          agentId, self.x, self.y,
+          `Usei ${materialResult.used} que eu tinha guardado para construir algo${intention.build_purpose ? ': ' + intention.build_purpose : ''}.`,
+          (name) => `Vi ${name} construir algo${intention.build_purpose ? ': ' + intention.build_purpose : ''}.`
+        );
       } else {
         actionType = 'observe';
+        notifyWitnesses(
+          agentId, self.x, self.y,
+          'Tentei construir algo, mas nao tinha nenhum material guardado.',
+          (name) => `Vi ${name} tentar construir algo sem ter material.`
+        );
       }
       break;
     }
@@ -223,6 +234,13 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
       if (isNearGrass(self.x, self.y)) {
         const success = tryConsumeFood(agentId);
         actionType = success ? 'collect_success' : 'collect_failed';
+        if (!success) {
+          notifyWitnesses(
+            agentId, self.x, self.y,
+            'Tentei consumir algo daquela area verde, mas nao havia nada disponivel.',
+            (name) => `Vi ${name} tentar consumir algo daquela area verde sem sucesso.`
+          );
+        }
       } else {
         moveTowards(agentId, GRASS_LOCATION.x, GRASS_LOCATION.y, 6);
         moved = true;
@@ -236,6 +254,19 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
       if (nearby && nearby.dist <= 15) {
         const result = tryGatherResource(agentId, self.x, self.y);
         actionType = result.success ? 'gather_success' : 'gather_failed';
+        if (result.success) {
+          notifyWitnesses(
+            agentId, self.x, self.y,
+            `Obtive ${result.resourceType} de algo que encontrei aqui.`,
+            (name) => `Vi ${name} obter algo de um recurso proximo.`
+          );
+        } else {
+          notifyWitnesses(
+            agentId, self.x, self.y,
+            'Tentei obter algo daquele recurso, mas nao consegui.',
+            (name) => `Vi ${name} tentar obter algo de um recurso sem sucesso.`
+          );
+        }
       } else if (nearby) {
         moveTowards(agentId, nearby.x, nearby.y, 6);
         moved = true;
