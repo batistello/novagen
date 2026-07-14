@@ -38,6 +38,15 @@ function loadState(agentId: string) {
   };
 }
 
+function logActivityTransition(agentId: string, newState: 'awake' | 'asleep') {
+  const row = db.prepare(`SELECT last_activity_state FROM agent_state WHERE agent_id = ?`).get(agentId) as { last_activity_state: string };
+  if (row.last_activity_state === newState) return;
+
+  db.prepare(`INSERT INTO agent_activity_log (agent_id, event_type, occurred_at) VALUES (?, ?, ?)`)
+    .run(agentId, newState === 'asleep' ? 'sleep' : 'wake', Date.now());
+  db.prepare(`UPDATE agent_state SET last_activity_state = ? WHERE agent_id = ?`).run(newState, agentId);
+}
+
 function loadTraits(agentId: string): Record<string, number> {
   const rows = db.prepare(`SELECT trait, value FROM agent_traits WHERE agent_id = ?`).all(agentId) as { trait: string; value: number }[];
   const traits: Record<string, number> = {};
@@ -111,6 +120,7 @@ async function think(agentId: string) {
       console.log(`[${AGENT_NAMES[agentId]}] em '${tier.name}', sem nova intencao neste ciclo.`);
       const { broadcastEvent: be1 } = await import('./ws/server');
       be1({ type: 'agent_status', agentId, resting: true, reason: 'energy' });
+      logActivityTransition(agentId, 'asleep');
       return;
     }
 
@@ -119,6 +129,7 @@ async function think(agentId: string) {
       console.log(`[${AGENT_NAMES[agentId]}] orcamento diario esgotado, sem nova intencao.`);
       const { broadcastEvent: be2 } = await import('./ws/server');
       be2({ type: 'agent_status', agentId, resting: true, reason: 'budget' });
+      logActivityTransition(agentId, 'asleep');
       return;
     }
 
@@ -308,6 +319,7 @@ ${visibleAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", d
 
     const { broadcastEvent: be3 } = await import('./ws/server');
     be3({ type: 'agent_status', agentId, resting: false, reason: null });
+    logActivityTransition(agentId, 'awake');
     console.log(`[${AGENT_NAMES[agentId]}] nova intencao: ${intention.goal_type} por ${intention.duration_minutes}min (energia ${energyAfterRegen.toFixed(1)}%, tier ${tier.name})`);
 
     const { broadcastEvent } = await import('./ws/server');
