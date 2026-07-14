@@ -2,7 +2,7 @@ import { db } from '../db';
 import { getIntention, setWanderTarget, isIntentionExpiredOrInterrupted, StoredIntention, setBuildDirection, incrementBuildCount } from './intentionStore';
 import { isNearGrass, tryConsumeFood, GRASS_LOCATION } from './hungerSystem';
 import { notifyWitnesses } from './memoryTiers';
-import { findNearbyResource, tryGatherResource, consumeForBuild } from './resourceSystem';
+import { findNearbyResource, tryGatherResource, consumeForBuild, tryDrinkWater } from './resourceSystem';
 import { broadcastEvent, broadcastFullState } from '../ws/server';
 
 const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho' };
@@ -268,6 +268,34 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
           );
         }
       } else if (nearby) {
+        moveTowards(agentId, nearby.x, nearby.y, 6);
+        moved = true;
+        actionType = 'walk';
+      } else {
+        actionType = 'observe';
+      }
+      break;
+    }
+    case 'drink': {
+      const self = loadState(agentId);
+      const nearby = findNearbyResource(self.x, self.y);
+      if (nearby && nearby.type === 'water_source' && nearby.dist <= 15) {
+        const result = tryDrinkWater(agentId, self.x, self.y);
+        actionType = result.success ? 'drink_success' : 'drink_failed';
+        if (result.success) {
+          notifyWitnesses(
+            agentId, self.x, self.y,
+            'Bebi daquela fonte de agua e senti algo mudar em mim.',
+            (name) => `Vi ${name} beber daquela fonte de agua.`
+          );
+        } else {
+          notifyWitnesses(
+            agentId, self.x, self.y,
+            result.reason === 'limit_reached' ? 'Tentei beber agua de novo, mas parece que ja bebi o suficiente por agora.' : 'Tentei beber agua, mas nao havia fonte por perto.',
+            (name) => `Vi ${name} tentar beber agua sem sucesso.`
+          );
+        }
+      } else if (nearby && nearby.type === 'water_source') {
         moveTowards(agentId, nearby.x, nearby.y, 6);
         moved = true;
         actionType = 'walk';

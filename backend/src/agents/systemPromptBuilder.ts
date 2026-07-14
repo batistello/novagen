@@ -145,6 +145,7 @@ Escolha um "goal_type" entre:
 - "rest": movimento minimo, focar em recuperar energia
 - "collect": ir ate uma area que percebeu e tentar interagir com o que existe la
 - "gather": ir ate um recurso que percebeu (algo solido, algo fluido, etc) e tentar obter parte dele
+- "drink": ir ate uma fonte que percebeu e tentar consumir dela diretamente, sem guardar nada
 
 Se escolher "build", voce DEVE preencher "build_purpose" com uma frase curta explicando o que esta tentando construir e por que (ex: "uma barreira para separar meu espaco", "um marco para lembrar deste lugar"). Isso da continuidade as suas construcoes ao longo do tempo — cada vez que voce escolher "build" de novo com a mesma intencao ativa, o sistema vai continuar erguendo a mesma estrutura na mesma direcao, entao pense em um proposito que faca sentido manter por varios ciclos.
 Voce so pode construir se tiver material (voce vai perceber se tem algo guardado atraves da sua propria experiencia recente); sem material, tentar construir nao funciona.
