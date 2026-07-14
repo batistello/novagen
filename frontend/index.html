@@ -15,9 +15,20 @@
     border-radius: 6px;
     color: #ddd;
     font-size: 12px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #panel-fixed {
+    flex-shrink: 0;
+    padding: 10px;
+    border-bottom: 1px solid #333;
+  }
+  #log-entries-wrapper {
+    flex: 1;
     overflow-y: auto;
     padding: 10px;
-    box-sizing: border-box;
   }
   #log-panel .entry { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #222; }
   #log-panel .entry .who { font-weight: bold; }
@@ -28,7 +39,10 @@
   #log-panel .entry .thought { color: #888; font-style: italic; font-size: 11px; margin-top: 2px; }
   #log-panel .status { color: #4caf50; font-size: 11px; margin-bottom: 8px; }
   #log-panel .status.disconnected { color: #e74c3c; }
-
+  #hunger-status { font-size: 11px; color: #aaa; margin-bottom: 6px; line-height: 1.5; }
+  #inventory-status { font-size: 11px; color: #999; margin-bottom: 8px; line-height: 1.5; }
+  #diary-toggle { background: #222; color: #ccc; border: 1px solid #444; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; margin-bottom: 6px; }
+  #diary-panel { display: none; background: #0d0d0d; border: 1px solid #333; border-radius: 4px; padding: 8px; margin-top: 6px; font-size: 11px; color: #bbb; max-height: 150px; overflow-y: auto; }
   @media (max-width: 700px) {
     body {
       flex-direction: column;
@@ -44,7 +58,7 @@
     }
     #log-panel {
       width: 96vw;
-      height: 240px;
+      height: 340px;
       margin-top: 10px;
     }
   }
@@ -53,13 +67,18 @@
 <body>
 <div id="app"></div>
 <div id="log-panel">
-  <div id="log-status" class="status">conectando...</div>
-  <div id="hunger-status" style="font-size:11px; color:#aaa; margin-bottom:10px;"></div>
-  <button id="diary-toggle" style="background:#222; color:#ccc; border:1px solid #444; border-radius:4px; padding:4px 8px; font-size:11px; cursor:pointer; margin-bottom:8px;">📖 Diario do Mundo</button>
-  <div id="diary-panel" style="display:none; background:#0d0d0d; border:1px solid #333; border-radius:4px; padding:8px; margin-bottom:10px; font-size:11px; color:#bbb; max-height:180px; overflow-y:auto;"></div>
-  <div id="log-entries"></div>
+  <div id="panel-fixed">
+    <div id="log-status" class="status">conectando...</div>
+    <div id="hunger-status"></div>
+    <div id="inventory-status"></div>
+    <button id="diary-toggle">Diario do Mundo</button>
+    <div id="diary-panel"></div>
+  </div>
+  <div id="log-entries-wrapper">
+    <div id="log-entries"></div>
+  </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.4.0/pixi.min.js"></script>
-<script src="main.js?v=11"></script>
+<script src="main.js?v=19"></script>
 </body>
 </html>

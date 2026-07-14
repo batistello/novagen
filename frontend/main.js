@@ -183,8 +183,9 @@ function drawStarShape(g, points, outerRadius) {
 
 function renderWorldObjects(objects) {
   worldLayer.removeChildren();
+  const sortedObjects = [...objects].sort((a, b) => a.y - b.y);
 
-  objects.forEach(obj => {
+  sortedObjects.forEach(obj => {
     try {
       const jpos = getJitteredPos(obj);
       const { sx, sy } = worldToScreen(jpos.x, jpos.y);
@@ -445,6 +446,7 @@ function applyFullState(msg) {
     }
   });
   updateHungerStatus(msg.states, msg.agents);
+  updateInventoryStatus(msg.states, msg.items, msg.agents);
   updateDiaryPanel(msg.diary);
   if (msg.resting) {
     Object.entries(msg.resting).forEach(([agentId, isResting]) => {
@@ -475,11 +477,45 @@ function updateHungerStatus(states, agents) {
   el.innerHTML = states.map(s => {
     const name = AGENT_NAMES[s.agent_id] || s.agent_id;
     const hunger = typeof s.hunger === 'number' ? s.hunger.toFixed(0) : '?';
+    const hp = typeof s.hp === 'number' ? s.hp.toFixed(0) : '100';
     const isDead = s.status === 'dead';
     const color = colorMap[s.agent_id] || '#888';
-    const label = isDead ? '(morto)' : `${hunger}% saciado`;
-    return `<span style="color:${color};">${name}</span>: ${label}`;
-  }).join(' &nbsp;|&nbsp; ');
+    const label = isDead ? '(morto)' : `${hunger}% saciado, ${hp} HP`;
+    return `<div><span style="color:${color}; font-weight:bold;">${name}</span>: ${label}</div>`;
+  }).join('');
+}
+
+const ITEM_LABELS = {
+  wood: 'Madeira', stone: 'Pedra', water: 'Agua', fiber: 'Fibra',
+  corda: 'Corda', vara_pesca: 'Vara de pesca', harpao: 'Harpao', faca: 'Faca',
+  machado: 'Machado', lanca: 'Lanca', tocha: 'Tocha', cesto: 'Cesto',
+};
+
+function updateInventoryStatus(states, items, agents) {
+  const el = document.getElementById('inventory-status');
+  if (!el || !states) return;
+  const colorMap = {};
+  (agents || []).forEach(a => { colorMap[a.id] = a.color; });
+  const itemsByAgent = {};
+  (items || []).forEach(it => {
+    if (!itemsByAgent[it.agent_id]) itemsByAgent[it.agent_id] = [];
+    itemsByAgent[it.agent_id].push(`${ITEM_LABELS[it.item_key] || it.item_key}: ${it.quantity}`);
+  });
+  const title = '<div style="color:#777; font-weight:bold; margin-bottom:2px;">Mochila:</div>';
+  const rows = states.filter(s => s.status !== 'dead').map(s => {
+    const name = AGENT_NAMES[s.agent_id] || s.agent_id;
+    const color = colorMap[s.agent_id] || '#888';
+    const parts = [];
+    if (s.wood > 0) parts.push(`Madeira: ${s.wood}`);
+    if (s.stone > 0) parts.push(`Pedra: ${s.stone}`);
+    if (s.water > 0) parts.push(`Agua: ${s.water}`);
+    if (s.fiber > 0) parts.push(`Fibra: ${s.fiber}`);
+    const craftedItems = itemsByAgent[s.agent_id] || [];
+    const allParts = parts.concat(craftedItems);
+    const inventoryText = allParts.length > 0 ? allParts.join(', ') : 'vazio';
+    return `<div><span style="color:${color}; font-weight:bold;">${name}</span>: ${inventoryText}</div>`;
+  });
+  el.innerHTML = title + rows.join('');
 }
 
 const DIARY_TAG_COLORS = {

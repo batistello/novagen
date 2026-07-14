@@ -64,6 +64,7 @@ function getFullState() {
   const lastSpeeches = getLastSpeeches();
   const resting = computeRestingMap(states);
   const diary = getWorldDiary();
+  const items = db.prepare(`SELECT agent_id, item_key, quantity FROM agent_items WHERE quantity > 0`).all();
 
   return {
     type: 'full_state',
@@ -73,6 +74,7 @@ function getFullState() {
     lastSpeeches,
     resting,
     diary,
+    items,
   };
 }
 
