@@ -15,6 +15,8 @@ const ASSET_PATHS = {
   agent_blue: 'assets/agent_blue.png',
   agent_red: 'assets/agent_red.png',
   agent_green: 'assets/agent_green.png',
+  wolf: 'assets/wolf.png',
+  rodent: 'assets/rodent.png',
 };
 
 const assetTextures = {};
@@ -41,8 +43,13 @@ loadAssets().then(() => connect());
 
 const worldLayer = new PIXI.Container();
 const agentLayer = new PIXI.Container();
+agentLayer.sortableChildren = true;
+const wolfLayer = new PIXI.Container();
+const rodentLayer = new PIXI.Container();
 const bubbleLayer = new PIXI.Container();
 app.stage.addChild(worldLayer);
+app.stage.addChild(rodentLayer);
+app.stage.addChild(wolfLayer);
 app.stage.addChild(agentLayer);
 app.stage.addChild(bubbleLayer);
 
@@ -114,6 +121,7 @@ function updateAgentPosition(agentId, x, y) {
 
   sprite.x = sx;
   sprite.y = sy;
+  sprite.zIndex = sy;
 }
 
 const COLOR_NAMES = {
@@ -179,6 +187,96 @@ function drawStarShape(g, points, outerRadius) {
     path.push(Math.cos(angle) * r, Math.sin(angle) * r);
   }
   g.drawPolygon(path);
+}
+
+const rodentSprites = {};
+
+function renderRodents(rodents) {
+  const currentIds = new Set(rodents.map(r => r.id));
+
+  Object.keys(rodentSprites).forEach(id => {
+    if (!currentIds.has(Number(id))) {
+      rodentLayer.removeChild(rodentSprites[id]);
+      delete rodentSprites[id];
+    }
+  });
+
+  rodents.forEach(r => {
+    const { sx, sy } = worldToScreen(r.x, r.y);
+    let sprite = rodentSprites[r.id];
+
+    if (!sprite) {
+      if (assetTextures.rodent) {
+        sprite = new PIXI.Sprite(assetTextures.rodent);
+        sprite.anchor.set(0.5);
+        sprite.width = 18;
+        sprite.height = 18;
+      } else {
+        sprite = new PIXI.Graphics();
+        sprite.beginFill(0x8b6f47).lineStyle(1, 0x4a3a26).drawCircle(0, 0, 5).endFill();
+      }
+      rodentLayer.addChild(sprite);
+      rodentSprites[r.id] = sprite;
+    }
+
+    sprite.x = sx;
+    sprite.y = sy;
+    sprite.zIndex = sy;
+  });
+}
+
+const wolfSprites = {};
+
+function renderWolves(wolves) {
+  const currentIds = new Set(wolves.map(w => w.id));
+
+  Object.keys(wolfSprites).forEach(id => {
+    if (!currentIds.has(Number(id))) {
+      wolfLayer.removeChild(wolfSprites[id]);
+      delete wolfSprites[id];
+    }
+  });
+
+  wolves.forEach(w => {
+    let { sx, sy } = worldToScreen(w.x, w.y);
+    wolves.forEach(other => {
+      if (other.id === w.id) return;
+      const otherPos = worldToScreen(other.x, other.y);
+      const dx = sx - otherPos.sx;
+      const dy = sy - otherPos.sy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const MIN_WOLF_DISTANCE = 20;
+      if (dist < MIN_WOLF_DISTANCE && dist > 0) {
+        const pushFactor = (MIN_WOLF_DISTANCE - dist) / dist;
+        sx += dx * pushFactor;
+        sy += dy * pushFactor;
+      } else if (dist === 0) {
+        sx += MIN_WOLF_DISTANCE;
+      }
+    });
+    let sprite = wolfSprites[w.id];
+
+    if (!sprite) {
+      if (assetTextures.wolf) {
+        sprite = new PIXI.Sprite(assetTextures.wolf);
+        sprite.anchor.set(0.5);
+        sprite.width = 32;
+        sprite.height = 32;
+      } else {
+        sprite = new PIXI.Graphics();
+        sprite.beginFill(0x555555).lineStyle(2, 0x222222).drawCircle(0, 0, 10).endFill();
+      }
+      wolfLayer.addChild(sprite);
+      wolfSprites[w.id] = sprite;
+    }
+
+    sprite.x = sx;
+    sprite.y = sy;
+    sprite.zIndex = sy;
+
+    const hpRatio = w.hp / (w.max_hp || 20);
+    sprite.alpha = 0.5 + hpRatio * 0.5;
+  });
 }
 
 function renderWorldObjects(objects) {
@@ -350,12 +448,15 @@ function setSleepIndicator(agentId, resting) {
   if (resting) {
     if (sleepIndicators[agentId]) return;
     const label = new PIXI.Text('Zzz', {
-      fontFamily: 'Arial', fontSize: 13, fill: 0x888888, fontStyle: 'italic',
+      fontFamily: 'Arial', fontSize: 16, fill: 0xffffff, fontStyle: 'italic', fontWeight: 'bold', stroke: 0x000000, strokeThickness: 3,
     });
+    const scaleY = sprite.scale.y || 1;
     const isNearTop = sprite.y < 30;
     label.anchor.set(0.5, isNearTop ? 0 : 1);
     label.x = 0;
-    label.y = isNearTop ? 20 : -16;
+    label.y = (isNearTop ? 25 : -25) / scaleY;
+    label.scale.set(1 / scaleY, 1 / (sprite.scale.x || 1));
+    label.alpha = 0.5;
     sprite.addChild(label);
     sleepIndicators[agentId] = label;
   } else {
@@ -395,7 +496,7 @@ function showSpeechBubble(agentId, text) {
   const bubbleHeight = finalHeight + padding * 2;
 
   const bg = new PIXI.Graphics();
-  bg.beginFill(0xffffff, 0.95).lineStyle(1, 0x000000)
+  bg.beginFill(0xffffff, 0.5).lineStyle(1, 0x000000)
     .drawRoundedRect(-bubbleWidth / 2, -bubbleHeight / 2, bubbleWidth, bubbleHeight, 6)
     .endFill();
 
@@ -448,6 +549,8 @@ function applyFullState(msg) {
   updateHungerStatus(msg.states, msg.agents);
   updateInventoryStatus(msg.states, msg.items, msg.agents);
   updateDiaryPanel(msg.diary);
+  renderWolves(msg.wolves || []);
+  renderRodents(msg.rodents || []);
   if (msg.resting) {
     Object.entries(msg.resting).forEach(([agentId, isResting]) => {
       setSleepIndicator(agentId, isResting);
@@ -480,7 +583,10 @@ function updateHungerStatus(states, agents) {
     const hp = typeof s.hp === 'number' ? s.hp.toFixed(0) : '100';
     const isDead = s.status === 'dead';
     const color = colorMap[s.agent_id] || '#888';
-    const label = isDead ? '(morto)' : `${hunger}% saciado, ${hp} HP`;
+    const handLabel = s.equip_hand ? (ITEM_LABELS[s.equip_hand] || s.equip_hand) : 'mao vazia';
+    const clothesLabel = s.equip_clothes ? (ITEM_LABELS[s.equip_clothes] || s.equip_clothes) : 'sem roupa';
+    const equipText = isDead ? '' : ` | Mao: ${handLabel} | Corpo: ${clothesLabel}`;
+    const label = isDead ? '(morto)' : `${hunger}% saciado, ${hp} HP${equipText}`;
     return `<div><span style="color:${color}; font-weight:bold;">${name}</span>: ${label}</div>`;
   }).join('');
 }
@@ -648,6 +754,12 @@ function connect() {
       } else {
         setSleepIndicator(msg.agentId, msg.resting);
       }
+    }
+    if (msg.type === 'wolf_positions') {
+      renderWolves(msg.wolves || []);
+    }
+    if (msg.type === 'rodent_positions') {
+      renderRodents(msg.rodents || []);
     }
     if (msg.type === 'agent_tick') {
       setSleepIndicator(msg.agentId, false);

@@ -1,11 +1,13 @@
 import { db } from '../db';
-import { getIntention, setWanderTarget, isIntentionExpiredOrInterrupted, StoredIntention, setBuildDirection, incrementBuildCount } from './intentionStore';
+import { getIntention, setWanderTarget, isIntentionExpiredOrInterrupted, StoredIntention, setBuildDirection, incrementBuildCount, markIntentionInterrupted } from './intentionStore';
 import { isNearGrass, tryConsumeFood, GRASS_LOCATION } from './hungerSystem';
 import { notifyWitnesses } from './memoryTiers';
 import {
   findNearbyResource, tryGatherResource, consumeForBuild, tryDrinkWater, tryFish, tryCraft, RECIPES,
-  tryEquip, tryUnequip, tryDrop, tryGiveItem, canAttack, computeAttackDamage, registerAttack, getEquipment, tryDrinkFromBag
+  tryEquip, tryUnequip, tryDrop, tryGiveItem, canAttack, computeAttackDamage, registerAttack, getEquipment, tryDrinkFromBag, WEAPON_ATK
 } from './resourceSystem';
+import { getNearbyWolves, tryAttackWolf } from './wolfSystem';
+import { getAliveRodents, tryHuntRodent } from './rodentSystem';
 import { broadcastEvent, broadcastFullState } from '../ws/server';
 
 const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
@@ -418,6 +420,9 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
         `Fui atacado por ${AGENT_NAMES[agentId] ?? agentId} e sofri dano.`,
         (name) => `Vi ${name} ser atacado.`
       );
+      if (newStatus !== 'dead') {
+        markIntentionInterrupted(otherId);
+      }
 
       if (newStatus === 'dead') {
         const alreadyMarked = db.prepare(
@@ -483,6 +488,68 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
           agentId, self.x, self.y,
           `Dei ${intention.item_key} para ${AGENT_NAMES[otherId] ?? otherId}.`,
           (name) => `Vi ${name} dar algo para outra entidade.`
+        );
+      }
+      break;
+    }
+    case 'attack_wolf': {
+      const self = loadState(agentId);
+      if (intention.target_wolf_id == null) {
+        actionType = 'observe';
+        break;
+      }
+      const nearbyWolves = getNearbyWolves(self.x, self.y, 60);
+      const wolf = nearbyWolves.find(w => w.id === intention.target_wolf_id);
+      if (!wolf) {
+        actionType = 'observe';
+        break;
+      }
+      if (wolf.dist > 12) {
+        moveTowards(agentId, wolf.x, wolf.y, 6);
+        moved = true;
+        actionType = 'walk';
+        break;
+      }
+      const equip = getEquipment(agentId);
+      const weaponAtk = equip.hand && WEAPON_ATK[equip.hand] != null ? WEAPON_ATK[equip.hand] : 2;
+      const result = tryAttackWolf(agentId, self.x, self.y, wolf.id, weaponAtk);
+      actionType = result.success ? 'attack_wolf_success' : 'attack_wolf_failed';
+      if (result.success) {
+        notifyWitnesses(
+          agentId, self.x, self.y,
+          result.wolfDied ? 'Enfrentei um predador e o derrotei.' : 'Enfrentei um predador e causei dano.',
+          (name) => `Vi ${name} enfrentar um predador.`
+        );
+        broadcastFullState();
+      }
+      break;
+    }
+    case 'attack_rodent': {
+      const self = loadState(agentId);
+      if (intention.target_rodent_id == null) {
+        actionType = 'observe';
+        break;
+      }
+      const rodents = getAliveRodents();
+      const rodent = rodents.find(r => r.id === intention.target_rodent_id);
+      if (!rodent) {
+        actionType = 'observe';
+        break;
+      }
+      const dist = Math.sqrt((rodent.x - self.x) ** 2 + (rodent.y - self.y) ** 2);
+      if (dist > 10) {
+        moveTowards(agentId, rodent.x, rodent.y, 6);
+        moved = true;
+        actionType = 'walk';
+        break;
+      }
+      const result = tryHuntRodent(agentId, self.x, self.y, rodent.id);
+      actionType = result.success ? 'attack_rodent_success' : 'attack_rodent_failed';
+      if (result.success) {
+        notifyWitnesses(
+          agentId, self.x, self.y,
+          'Capturei um pequeno animal.',
+          (name) => `Vi ${name} capturar um pequeno animal.`
         );
       }
       break;

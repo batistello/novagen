@@ -18,7 +18,7 @@ const FISH_STAGE_DURATION_HOURS = 24;
 const FISH_HUNGER_RESTORE: Record<string, number> = { pequeno: 20, grande: 50 };
 const FISH_REGROW_AFTER_HOURS = 24;
 
-export const RECIPES: Record<string, { wood?: number; stone?: number; fiber?: number; corda?: number; kind: 'tool' | 'structure' }> = {
+export const RECIPES: Record<string, { wood?: number; stone?: number; fiber?: number; corda?: number; couro?: number; kind: 'tool' | 'structure' }> = {
   corda: { fiber: 3, kind: 'tool' },
   vara_pesca: { wood: 2, corda: 1, kind: 'tool' },
   harpao: { wood: 2, stone: 1, kind: 'tool' },
@@ -30,6 +30,7 @@ export const RECIPES: Record<string, { wood?: number; stone?: number; fiber?: nu
   cerca: { wood: 5, kind: 'structure' },
   muro_pedra: { stone: 5, kind: 'structure' },
   telhado_pedra: { stone: 4, wood: 2, kind: 'structure' },
+  couro_curtido: { couro: 1, fiber: 2, kind: 'tool' },
 };
 
 interface NearbyResource {
@@ -213,13 +214,16 @@ export function tryCraft(agentId: string, itemKey: string): { success: boolean; 
   if ((recipe.wood ?? 0) > inv.wood) return { success: false, reason: 'sem_madeira' };
   if ((recipe.stone ?? 0) > inv.stone) return { success: false, reason: 'sem_pedra' };
   if ((recipe.fiber ?? 0) > inv.fiber) return { success: false, reason: 'sem_fibra' };
+  const couro = getItemQuantity(agentId, 'couro');
   if ((recipe.corda ?? 0) > corda) return { success: false, reason: 'sem_corda' };
+  if ((recipe.couro ?? 0) > couro) return { success: false, reason: 'sem_couro' };
   if (recipe.kind === 'tool' && !hasCapacityFor(agentId, 1)) return { success: false, reason: 'sem_espaco' };
 
   if (recipe.wood) db.prepare(`UPDATE agent_state SET wood = wood - ? WHERE agent_id = ?`).run(recipe.wood, agentId);
   if (recipe.stone) db.prepare(`UPDATE agent_state SET stone = stone - ? WHERE agent_id = ?`).run(recipe.stone, agentId);
   if (recipe.fiber) db.prepare(`UPDATE agent_state SET fiber = fiber - ? WHERE agent_id = ?`).run(recipe.fiber, agentId);
   if (recipe.corda) addItem(agentId, 'corda', -recipe.corda);
+  if (recipe.couro) addItem(agentId, 'couro', -recipe.couro);
 
   if (recipe.kind === 'tool') {
     addItem(agentId, itemKey, 1);
@@ -253,7 +257,7 @@ export const WEAPON_ATK: Record<string, number> = {
 };
 
 export const ARMOR_DEF: Record<string, number> = {
-  // reservado para futuras armaduras (ex: couro de lobo)
+  couro_curtido: 3,
 };
 
 const BASE_UNARMED_ATK = 2;

@@ -2,6 +2,9 @@ import { initSchema, db } from './db';
 import { getTier, PASSIVE_REGEN_PER_MIN, SLEEP_REGEN_PER_MIN } from './agents/energyConfig';
 import { applyHungerDecay, growPlants, describeHungerQualitative, describeEnergyQualitative, describePlantStage } from './agents/hungerSystem';
 import { growResources } from './agents/resourceSystem';
+import { tickWolves, getNearbyWolves } from './agents/wolfSystem';
+import { getAliveRodents } from './agents/rodentSystem';
+import { tickRodents } from './agents/rodentSystem';
 import { applyHpRegen, describeHpQualitative } from './agents/hpSystem';
 import { initWebSocketServer } from './ws/server';
 import { getIntention, saveIntention, isIntentionExpiredOrInterrupted, markIntentionInterrupted } from './agents/intentionStore';
@@ -199,6 +202,34 @@ async function think(agentId: string) {
 
     const hungerValue = stateAfterHunger.hunger;
     const distToGrass = Math.round(Math.sqrt((state.x - 0) ** 2 + (state.y - 0) ** 2));
+    let wolvesText = '';
+    {
+      const nearbyWolves = getNearbyWolves(state.x, state.y, 70);
+      if (nearbyWolves.length > 0) {
+        wolvesText = 'Voce percebe algo selvagem por perto:\n' + nearbyWolves.map(w => {
+          const dx = w.x - state.x;
+          const dy = w.y - state.y;
+          const dist = Math.round(Math.sqrt(dx * dx + dy * dy));
+          return `  - id ${w.id}: uma presenca animal a ${dist} metros, ao ${compassDirection(dx, dy)}`;
+        }).join('\n') + '\nSe sua intencao for "attack_wolf", defina "target_wolf_id" com o id exato.';
+      }
+    }
+
+    let rodentsText = '';
+    {
+      const nearbyRodents = getAliveRodents()
+        .map(r => ({ ...r, dist: Math.sqrt((r.x - state.x) ** 2 + (r.y - state.y) ** 2) }))
+        .filter(r => r.dist <= 40);
+      if (nearbyRodents.length > 0) {
+        rodentsText = 'Voce percebe algo pequeno se movendo por perto:\n' + nearbyRodents.map(r => {
+          const dx = r.x - state.x;
+          const dy = r.y - state.y;
+          const dist = Math.round(r.dist);
+          return `  - id ${r.id}: algo pequeno e agil a ${dist} metros, ao ${compassDirection(dx, dy)}`;
+        }).join('\n') + '\nSe sua intencao for "attack_rodent", defina "target_rodent_id" com o id exato.';
+      }
+    }
+
     let grassLine = '';
     if (distToGrass <= 70) {
       const plants = db.prepare(`SELECT stage FROM food_slots WHERE status = 'available'`).all() as { stage: string }[];
@@ -224,6 +255,8 @@ ${visibleAgentIds.length > 0 ? othersText : '  (nenhuma entidade percebida por p
 Voce ve estes objetos proximos:
 ${objectsText}
 ${grassLine}
+${wolvesText}
+${rodentsText}
 
 ${episodicMemory.length > 0 ? `Voce se lembra de coisas que ja viveu:\n${episodicMemory.map(m => `  - ${m}`).join('\n')}` : ''}
 ${socialMemory.length > 0 ? `Voce se lembra de coisas que percebeu sobre as outras entidades:\n${socialMemory.map(m => `  - ${m}`).join('\n')}` : ''}
@@ -296,6 +329,8 @@ ${visibleAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", d
 function behaviorLoop() {
   growPlants();
   growResources();
+  tickWolves();
+  tickRodents();
 
   AGENT_IDS.forEach(agentId => {
     applyHpRegen(agentId);
