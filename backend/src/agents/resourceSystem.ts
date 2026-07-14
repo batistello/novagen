@@ -203,7 +203,7 @@ function addItem(agentId: string, itemKey: string, amount: number) {
   `).run(agentId, itemKey, amount);
 }
 
-export function tryCraft(agentId: string, itemKey: string): { success: boolean; reason?: string } {
+export function tryCraft(agentId: string, itemKey: string): { success: boolean; reason?: string; kind?: 'tool' | 'structure' } {
   const recipe = RECIPES[itemKey];
   if (!recipe) return { success: false, reason: 'unknown_recipe' };
 
@@ -214,6 +214,7 @@ export function tryCraft(agentId: string, itemKey: string): { success: boolean; 
   if ((recipe.stone ?? 0) > inv.stone) return { success: false, reason: 'sem_pedra' };
   if ((recipe.fiber ?? 0) > inv.fiber) return { success: false, reason: 'sem_fibra' };
   if ((recipe.corda ?? 0) > corda) return { success: false, reason: 'sem_corda' };
+  if (recipe.kind === 'tool' && !hasCapacityFor(agentId, 1)) return { success: false, reason: 'sem_espaco' };
 
   if (recipe.wood) db.prepare(`UPDATE agent_state SET wood = wood - ? WHERE agent_id = ?`).run(recipe.wood, agentId);
   if (recipe.stone) db.prepare(`UPDATE agent_state SET stone = stone - ? WHERE agent_id = ?`).run(recipe.stone, agentId);
@@ -224,7 +225,7 @@ export function tryCraft(agentId: string, itemKey: string): { success: boolean; 
     addItem(agentId, itemKey, 1);
   }
 
-  return { success: true };
+  return { success: true, kind: recipe.kind };
 }
 
 // Mantido por compatibilidade com o codigo antigo de build generico (fallback quando nao ha receita estruturada)
@@ -364,5 +365,18 @@ export function tryGiveItem(fromAgentId: string, toAgentId: string, itemKey: str
     ON CONFLICT(agent_id, item_key) DO UPDATE SET quantity = quantity + excluded.quantity
   `).run(toAgentId, itemKey, owned);
 
+  return { success: true };
+}
+
+const BAG_WATER_DRINK_HUNGER_RESTORE = 8;
+
+export function tryDrinkFromBag(agentId: string): { success: boolean; reason?: string } {
+  const inv = getInventory(agentId);
+  if (inv.water <= 0) return { success: false, reason: 'sem_agua_guardada' };
+
+  const state = db.prepare(`SELECT hunger FROM agent_state WHERE agent_id = ?`).get(agentId) as { hunger: number };
+  const newHunger = Math.min(100, state.hunger + BAG_WATER_DRINK_HUNGER_RESTORE);
+
+  db.prepare(`UPDATE agent_state SET water = water - 1, hunger = ? WHERE agent_id = ?`).run(newHunger, agentId);
   return { success: true };
 }

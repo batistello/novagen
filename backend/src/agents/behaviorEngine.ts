@@ -4,7 +4,7 @@ import { isNearGrass, tryConsumeFood, GRASS_LOCATION } from './hungerSystem';
 import { notifyWitnesses } from './memoryTiers';
 import {
   findNearbyResource, tryGatherResource, consumeForBuild, tryDrinkWater, tryFish, tryCraft, RECIPES,
-  tryEquip, tryUnequip, tryDrop, tryGiveItem, canAttack, computeAttackDamage, registerAttack, getEquipment
+  tryEquip, tryUnequip, tryDrop, tryGiveItem, canAttack, computeAttackDamage, registerAttack, getEquipment, tryDrinkFromBag
 } from './resourceSystem';
 import { broadcastEvent, broadcastFullState } from '../ws/server';
 
@@ -298,12 +298,22 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
             (name) => `Vi ${name} tentar beber agua sem sucesso.`
           );
         }
-      } else if (nearby && nearby.type === 'water_source') {
-        moveTowards(agentId, nearby.x, nearby.y, 6);
-        moved = true;
-        actionType = 'walk';
       } else {
-        actionType = 'observe';
+        const bagResult = tryDrinkFromBag(agentId);
+        if (bagResult.success) {
+          actionType = 'drink_success';
+          notifyWitnesses(
+            agentId, self.x, self.y,
+            'Bebi da agua que eu tinha guardado comigo.',
+            (name) => `Vi ${name} beber de algo que carregava.`
+          );
+        } else if (nearby && nearby.type === 'water_source') {
+          moveTowards(agentId, nearby.x, nearby.y, 6);
+          moved = true;
+          actionType = 'walk';
+        } else {
+          actionType = 'observe';
+        }
       }
       break;
     }
@@ -350,6 +360,14 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
       const result = tryCraft(agentId, itemKey);
       actionType = result.success ? 'craft_success' : 'craft_failed';
       if (result.success) {
+        if (result.kind === 'structure') {
+          const typeByItem: Record<string, string> = { cerca: 'fence', muro_pedra: 'stone_wall', telhado_pedra: 'stone_roof' };
+          const colorByItem: Record<string, string> = { cerca: '#8b5a2b', muro_pedra: '#7f8c8d', telhado_pedra: '#6b6b6b' };
+          db.prepare(
+            `INSERT INTO world_objects (created_by, type, x, y, color, label, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+          ).run(agentId, typeByItem[itemKey] ?? 'structure', self.x, self.y, colorByItem[itemKey] ?? '#888', itemKey, Date.now());
+          broadcastFullState();
+        }
         notifyWitnesses(
           agentId, self.x, self.y,
           `Consegui montar algo novo (${itemKey}) a partir do que eu tinha guardado.`,
