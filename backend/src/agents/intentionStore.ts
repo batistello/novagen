@@ -21,6 +21,7 @@ export interface StoredIntention {
   build_dir_x: number | null;
   build_dir_y: number | null;
   build_count: number;
+  craft_item: string | null;
 }
 
 export function saveIntention(agentId: string, intention: Intention) {
@@ -28,15 +29,16 @@ export function saveIntention(agentId: string, intention: Intention) {
   const expiresAt = now + intention.duration_minutes * 60_000;
 
   db.prepare(`
-    INSERT INTO agent_intentions (agent_id, goal_type, target_agent_id, target_x, target_y, wander_x, wander_y, priority, interrupt_on_speech, interrupt_on_proximity, raw_speech, raw_thought, emotion, started_at, expires_at, status, build_purpose, build_dir_x, build_dir_y, build_count)
-    VALUES (@agent_id, @goal_type, @target_agent_id, NULL, NULL, NULL, NULL, 'normal', @interrupt_on_speech, @interrupt_on_proximity, @raw_speech, @raw_thought, @emotion, @started_at, @expires_at, 'active', @build_purpose, NULL, NULL, 0)
+    INSERT INTO agent_intentions (agent_id, goal_type, target_agent_id, target_x, target_y, wander_x, wander_y, priority, interrupt_on_speech, interrupt_on_proximity, raw_speech, raw_thought, emotion, started_at, expires_at, status, build_purpose, build_dir_x, build_dir_y, build_count, craft_item)
+    VALUES (@agent_id, @goal_type, @target_agent_id, NULL, NULL, NULL, NULL, 'normal', @interrupt_on_speech, @interrupt_on_proximity, @raw_speech, @raw_thought, @emotion, @started_at, @expires_at, 'active', @build_purpose, NULL, NULL, 0, @craft_item)
     ON CONFLICT(agent_id) DO UPDATE SET
       goal_type=excluded.goal_type, target_agent_id=excluded.target_agent_id,
       wander_x=NULL, wander_y=NULL,
       interrupt_on_speech=excluded.interrupt_on_speech, interrupt_on_proximity=excluded.interrupt_on_proximity,
       raw_speech=excluded.raw_speech, raw_thought=excluded.raw_thought, emotion=excluded.emotion,
       started_at=excluded.started_at, expires_at=excluded.expires_at, status='active',
-      build_purpose=excluded.build_purpose, build_dir_x=NULL, build_dir_y=NULL, build_count=0
+      build_purpose=excluded.build_purpose, build_dir_x=NULL, build_dir_y=NULL, build_count=0,
+      craft_item=excluded.craft_item
   `).run({
     agent_id: agentId,
     goal_type: intention.goal_type,
@@ -49,6 +51,7 @@ export function saveIntention(agentId: string, intention: Intention) {
     started_at: now,
     expires_at: expiresAt,
     build_purpose: intention.build_purpose ?? null,
+    craft_item: intention.craft_item ?? null,
   });
 }
 

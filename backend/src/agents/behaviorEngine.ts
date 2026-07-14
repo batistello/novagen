@@ -2,7 +2,7 @@ import { db } from '../db';
 import { getIntention, setWanderTarget, isIntentionExpiredOrInterrupted, StoredIntention, setBuildDirection, incrementBuildCount } from './intentionStore';
 import { isNearGrass, tryConsumeFood, GRASS_LOCATION } from './hungerSystem';
 import { notifyWitnesses } from './memoryTiers';
-import { findNearbyResource, tryGatherResource, consumeForBuild, tryDrinkWater } from './resourceSystem';
+import { findNearbyResource, tryGatherResource, consumeForBuild, tryDrinkWater, tryFish, tryCraft, RECIPES } from './resourceSystem';
 import { broadcastEvent, broadcastFullState } from '../ws/server';
 
 const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho' };
@@ -301,6 +301,63 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
         actionType = 'walk';
       } else {
         actionType = 'observe';
+      }
+      break;
+    }
+    case 'fish': {
+      const self = loadState(agentId);
+      const nearby = findNearbyResource(self.x, self.y);
+      if (nearby && nearby.type === 'water_source' && nearby.dist <= 15) {
+        const result = tryFish(agentId, self.x, self.y);
+        actionType = result.success ? 'fish_success' : 'fish_failed';
+        if (result.success) {
+          notifyWitnesses(
+            agentId, self.x, self.y,
+            `Consegui pescar algo naquela agua (era ${result.stage}). A sensacao de vazio diminuiu.`,
+            (name) => `Vi ${name} pescar algo naquela agua.`
+          );
+        } else {
+          const reasonText = result.reason === 'no_harpoon'
+            ? 'Tentei pescar, mas nao tinha nada apropriado comigo para isso.'
+            : result.reason === 'no_fish'
+            ? 'Tentei pescar, mas nao havia nada para pescar naquele momento.'
+            : 'Tentei pescar, mas nao estava perto o suficiente da agua.';
+          notifyWitnesses(
+            agentId, self.x, self.y,
+            reasonText,
+            (name) => `Vi ${name} tentar pescar sem sucesso.`
+          );
+        }
+      } else if (nearby && nearby.type === 'water_source') {
+        moveTowards(agentId, nearby.x, nearby.y, 6);
+        moved = true;
+        actionType = 'walk';
+      } else {
+        actionType = 'observe';
+      }
+      break;
+    }
+    case 'craft': {
+      const self = loadState(agentId);
+      const itemKey = intention.craft_item;
+      if (!itemKey || !RECIPES[itemKey]) {
+        actionType = 'observe';
+        break;
+      }
+      const result = tryCraft(agentId, itemKey);
+      actionType = result.success ? 'craft_success' : 'craft_failed';
+      if (result.success) {
+        notifyWitnesses(
+          agentId, self.x, self.y,
+          `Consegui montar algo novo (${itemKey}) a partir do que eu tinha guardado.`,
+          (name) => `Vi ${name} montar algo novo a partir do que tinha guardado.`
+        );
+      } else {
+        notifyWitnesses(
+          agentId, self.x, self.y,
+          `Tentei montar algo (${itemKey}), mas nao tinha os materiais certos guardados.`,
+          (name) => `Vi ${name} tentar montar algo sem ter os materiais certos.`
+        );
       }
       break;
     }

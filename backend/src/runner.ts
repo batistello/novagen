@@ -1,6 +1,8 @@
 import { initSchema, db } from './db';
 import { getTier, PASSIVE_REGEN_PER_MIN, SLEEP_REGEN_PER_MIN } from './agents/energyConfig';
 import { applyHungerDecay, growPlants, describeHungerQualitative, describeEnergyQualitative, describePlantStage } from './agents/hungerSystem';
+import { growResources } from './agents/resourceSystem';
+import { applyHpRegen, describeHpQualitative } from './agents/hpSystem';
 import { initWebSocketServer } from './ws/server';
 import { getIntention, saveIntention, isIntentionExpiredOrInterrupted, markIntentionInterrupted } from './agents/intentionStore';
 import { behaviorTick, checkProximityInterrupt } from './agents/behaviorEngine';
@@ -293,8 +295,10 @@ ${visibleAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", d
 
 function behaviorLoop() {
   growPlants();
+  growResources();
 
   AGENT_IDS.forEach(agentId => {
+    applyHpRegen(agentId);
     const intention = getIntention(agentId);
 
     if (checkProximityInterrupt(agentId)) {

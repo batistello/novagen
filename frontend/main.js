@@ -51,7 +51,7 @@ border.lineStyle(2, 0x000000).drawRect(0, 0, WORLD_SIZE, WORLD_SIZE);
 app.stage.addChildAt(border, 0);
 
 const CENTER = WORLD_SIZE / 2;
-const WORLD_SCALE = 3.2;
+const WORLD_SCALE = 1.8;
 const MIN_AGENT_DISTANCE = 40;
 
 const agentSprites = {};
