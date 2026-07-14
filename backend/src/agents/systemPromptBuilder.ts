@@ -148,6 +148,11 @@ Escolha um "goal_type" entre:
 - "drink": ir ate uma fonte que percebeu e tentar consumir dela diretamente, sem guardar nada
 - "fish": ir ate uma fonte de agua e tentar obter algo vivo de dentro dela (requer ter algo apropriado guardado antes)
 - "craft": tentar montar algo novo a partir do que voce ja tem guardado. Se escolher isso, preencha "craft_item" com uma destas opcoes exatas: "corda", "vara_pesca", "harpao", "faca", "machado", "lanca", "tocha", "cesto", "cerca", "muro_pedra", "telhado_pedra". Voce so descobre se tem material suficiente tentando; nao ha garantia de sucesso.
+- "equip": segurar ou vestir algo que voce ja tem guardado, se preencher "item_key" com o nome exato do que possui.
+- "unequip": parar de usar o que esta segurando ou vestindo. Preencha "equip_slot" com "hand" ou "clothes".
+- "drop": largar algo que voce tem guardado, se preencher "item_key" com o nome exato do que possui. Isso remove o item permanentemente do que voce carrega.
+- "give": entregar algo que voce tem guardado para outra entidade proxima. Preencha "target_agent_id" com o id dela e "item_key" com o que deseja entregar.
+- "attack": confrontar fisicamente outra entidade proxima. Preencha "target_agent_id" com o id dela.
 
 Se escolher "build", voce DEVE preencher "build_purpose" com uma frase curta explicando o que esta tentando construir e por que (ex: "uma barreira para separar meu espaco", "um marco para lembrar deste lugar"). Isso da continuidade as suas construcoes ao longo do tempo — cada vez que voce escolher "build" de novo com a mesma intencao ativa, o sistema vai continuar erguendo a mesma estrutura na mesma direcao, entao pense em um proposito que faca sentido manter por varios ciclos.
 Voce so pode construir se tiver material (voce vai perceber se tem algo guardado atraves da sua propria experiencia recente); sem material, tentar construir nao funciona.

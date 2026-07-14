@@ -37,9 +37,6 @@ export function applyHungerDecay(agentId: string): number {
 
   db.prepare(`UPDATE agent_state SET hunger = ? WHERE agent_id = ?`).run(newHunger, agentId);
 
-  if (newHunger <= 0) {
-    db.prepare(`UPDATE agent_state SET status = 'dead' WHERE agent_id = ? AND status != 'dead'`).run(agentId);
-  }
 
   return newHunger;
 }

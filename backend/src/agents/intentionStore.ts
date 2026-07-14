@@ -22,6 +22,8 @@ export interface StoredIntention {
   build_dir_y: number | null;
   build_count: number;
   craft_item: string | null;
+  item_key: string | null;
+  equip_slot: string | null;
 }
 
 export function saveIntention(agentId: string, intention: Intention) {
@@ -29,8 +31,8 @@ export function saveIntention(agentId: string, intention: Intention) {
   const expiresAt = now + intention.duration_minutes * 60_000;
 
   db.prepare(`
-    INSERT INTO agent_intentions (agent_id, goal_type, target_agent_id, target_x, target_y, wander_x, wander_y, priority, interrupt_on_speech, interrupt_on_proximity, raw_speech, raw_thought, emotion, started_at, expires_at, status, build_purpose, build_dir_x, build_dir_y, build_count, craft_item)
-    VALUES (@agent_id, @goal_type, @target_agent_id, NULL, NULL, NULL, NULL, 'normal', @interrupt_on_speech, @interrupt_on_proximity, @raw_speech, @raw_thought, @emotion, @started_at, @expires_at, 'active', @build_purpose, NULL, NULL, 0, @craft_item)
+    INSERT INTO agent_intentions (agent_id, goal_type, target_agent_id, target_x, target_y, wander_x, wander_y, priority, interrupt_on_speech, interrupt_on_proximity, raw_speech, raw_thought, emotion, started_at, expires_at, status, build_purpose, build_dir_x, build_dir_y, build_count, craft_item, item_key, equip_slot)
+    VALUES (@agent_id, @goal_type, @target_agent_id, NULL, NULL, NULL, NULL, 'normal', @interrupt_on_speech, @interrupt_on_proximity, @raw_speech, @raw_thought, @emotion, @started_at, @expires_at, 'active', @build_purpose, NULL, NULL, 0, @craft_item, @item_key, @equip_slot)
     ON CONFLICT(agent_id) DO UPDATE SET
       goal_type=excluded.goal_type, target_agent_id=excluded.target_agent_id,
       wander_x=NULL, wander_y=NULL,
@@ -38,7 +40,7 @@ export function saveIntention(agentId: string, intention: Intention) {
       raw_speech=excluded.raw_speech, raw_thought=excluded.raw_thought, emotion=excluded.emotion,
       started_at=excluded.started_at, expires_at=excluded.expires_at, status='active',
       build_purpose=excluded.build_purpose, build_dir_x=NULL, build_dir_y=NULL, build_count=0,
-      craft_item=excluded.craft_item
+      craft_item=excluded.craft_item, item_key=excluded.item_key, equip_slot=excluded.equip_slot
   `).run({
     agent_id: agentId,
     goal_type: intention.goal_type,
@@ -52,6 +54,8 @@ export function saveIntention(agentId: string, intention: Intention) {
     expires_at: expiresAt,
     build_purpose: intention.build_purpose ?? null,
     craft_item: intention.craft_item ?? null,
+    item_key: intention.item_key ?? null,
+    equip_slot: intention.equip_slot ?? null,
   });
 }
 

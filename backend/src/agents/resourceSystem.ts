@@ -244,3 +244,125 @@ export function consumeForBuild(agentId: string): { success: boolean; used?: str
   }
   return { success: false };
 }
+
+export const WEAPON_ATK: Record<string, number> = {
+  lanca: 6,
+  faca: 4,
+  machado: 7,
+};
+
+export const ARMOR_DEF: Record<string, number> = {
+  // reservado para futuras armaduras (ex: couro de lobo)
+};
+
+const BASE_UNARMED_ATK = 2;
+const MAX_CARRIED_ITEMS = 500;
+const ATTACK_COOLDOWN_MS = 15_000;
+
+export function getTotalCarriedCount(agentId: string): number {
+  const inv = getInventory(agentId);
+  const rawTotal = inv.wood + inv.stone + inv.water + inv.fiber;
+  const items = getAllItems(agentId);
+  const itemsTotal = items.reduce((sum, it) => sum + it.quantity, 0);
+  return rawTotal + itemsTotal;
+}
+
+export function hasCapacityFor(agentId: string, amount: number): boolean {
+  return getTotalCarriedCount(agentId) + amount <= MAX_CARRIED_ITEMS;
+}
+
+export function tryEquip(agentId: string, itemKey: string): { success: boolean; slot?: string } {
+  const owned = getItemQuantity(agentId, itemKey);
+  if (owned <= 0) return { success: false };
+
+  if (WEAPON_ATK[itemKey] != null) {
+    db.prepare(`UPDATE agent_state SET equip_hand = ? WHERE agent_id = ?`).run(itemKey, agentId);
+    return { success: true, slot: 'hand' };
+  }
+  if (ARMOR_DEF[itemKey] != null) {
+    db.prepare(`UPDATE agent_state SET equip_clothes = ? WHERE agent_id = ?`).run(itemKey, agentId);
+    return { success: true, slot: 'clothes' };
+  }
+  return { success: false };
+}
+
+export function tryUnequip(agentId: string, slot: 'hand' | 'clothes'): { success: boolean } {
+  const column = slot === 'hand' ? 'equip_hand' : 'equip_clothes';
+  db.prepare(`UPDATE agent_state SET ${column} = NULL WHERE agent_id = ?`).run(agentId);
+  return { success: true };
+}
+
+export function tryDrop(agentId: string, itemKey: string): { success: boolean } {
+  const rawColumns = ['wood', 'stone', 'water', 'fiber'];
+  if (rawColumns.includes(itemKey)) {
+    db.prepare(`UPDATE agent_state SET ${itemKey} = 0 WHERE agent_id = ?`).run(agentId);
+    return { success: true };
+  }
+  const owned = getItemQuantity(agentId, itemKey);
+  if (owned <= 0) return { success: false };
+  db.prepare(`UPDATE agent_items SET quantity = 0 WHERE agent_id = ? AND item_key = ?`).run(agentId, itemKey);
+  return { success: true };
+}
+
+export function getEquipment(agentId: string): { hand: string | null; clothes: string | null } {
+  const row = db.prepare(`SELECT equip_hand, equip_clothes FROM agent_state WHERE agent_id = ?`).get(agentId) as {
+    equip_hand: string | null; equip_clothes: string | null;
+  };
+  return { hand: row.equip_hand, clothes: row.equip_clothes };
+}
+
+export function canAttack(agentId: string): boolean {
+  const row = db.prepare(`SELECT last_attack_at FROM agent_state WHERE agent_id = ?`).get(agentId) as { last_attack_at: number | null };
+  if (!row.last_attack_at) return true;
+  return Date.now() - row.last_attack_at >= ATTACK_COOLDOWN_MS;
+}
+
+export function computeAttackDamage(attackerId: string, defenderId: string): number {
+  const attackerEquip = getEquipment(attackerId);
+  const defenderEquip = getEquipment(defenderId);
+
+  const atk = attackerEquip.hand && WEAPON_ATK[attackerEquip.hand] != null
+    ? WEAPON_ATK[attackerEquip.hand]
+    : BASE_UNARMED_ATK;
+
+  const def = defenderEquip.clothes && ARMOR_DEF[defenderEquip.clothes] != null
+    ? ARMOR_DEF[defenderEquip.clothes]
+    : 0;
+
+  return Math.max(0, atk - def);
+}
+
+export function registerAttack(agentId: string) {
+  db.prepare(`UPDATE agent_state SET last_attack_at = ? WHERE agent_id = ?`).run(Date.now(), agentId);
+}
+export const GIVE_INTERACTION_RADIUS = 20;
+
+export function tryGiveItem(fromAgentId: string, toAgentId: string, itemKey: string, fromX: number, fromY: number, toX: number, toY: number): { success: boolean; reason?: string } {
+  const dist = Math.sqrt((toX - fromX) ** 2 + (toY - fromY) ** 2);
+  if (dist > GIVE_INTERACTION_RADIUS) return { success: false, reason: 'too_far' };
+
+  const rawColumns = ['wood', 'stone', 'water', 'fiber'];
+
+  if (rawColumns.includes(itemKey)) {
+    const fromInv = getInventory(fromAgentId);
+    const amount = (fromInv as any)[itemKey];
+    if (!amount || amount <= 0) return { success: false, reason: 'nothing_to_give' };
+    if (!hasCapacityFor(toAgentId, amount)) return { success: false, reason: 'receiver_full' };
+
+    db.prepare(`UPDATE agent_state SET ${itemKey} = 0 WHERE agent_id = ?`).run(fromAgentId);
+    db.prepare(`UPDATE agent_state SET ${itemKey} = ${itemKey} + ? WHERE agent_id = ?`).run(amount, toAgentId);
+    return { success: true };
+  }
+
+  const owned = getItemQuantity(fromAgentId, itemKey);
+  if (owned <= 0) return { success: false, reason: 'nothing_to_give' };
+  if (!hasCapacityFor(toAgentId, owned)) return { success: false, reason: 'receiver_full' };
+
+  db.prepare(`UPDATE agent_items SET quantity = 0 WHERE agent_id = ? AND item_key = ?`).run(fromAgentId, itemKey);
+  db.prepare(`
+    INSERT INTO agent_items (agent_id, item_key, quantity) VALUES (?, ?, ?)
+    ON CONFLICT(agent_id, item_key) DO UPDATE SET quantity = quantity + excluded.quantity
+  `).run(toAgentId, itemKey, owned);
+
+  return { success: true };
+}

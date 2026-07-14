@@ -70,7 +70,7 @@ async function think(agentId: string) {
     const hunger = applyHungerDecay(agentId);
     const stateAfterHunger = loadState(agentId);
     if (stateAfterHunger.status === 'dead') {
-      console.log(`[${AGENT_NAMES[agentId]}] morreu de fome.`);
+      console.log(`[${AGENT_NAMES[agentId]}] morreu (fome critica levou a perda de HP ate zero).`);
 
       const alreadyMarked = db.prepare(
         `SELECT id FROM world_objects WHERE type = 'corpse' AND created_by = ? LIMIT 1`
@@ -92,7 +92,7 @@ async function think(agentId: string) {
         });
 
         const { recordDiaryEntry } = await import('./agents/worldDiary');
-        recordDiaryEntry(`${AGENT_NAMES[agentId]} morreu de fome.`, 'MORTE');
+        recordDiaryEntry(`${AGENT_NAMES[agentId]} morreu (fome critica levou a perda de HP ate zero).`, 'MORTE');
       }
 
       const { broadcastEvent: bedeath, broadcastFullState: bfsdeath } = await import('./ws/server');
@@ -119,16 +119,16 @@ async function think(agentId: string) {
       return;
     }
 
-    let maxTokens = 700;
+    let maxTokens = 900;
     let budgetNote = '';
     if (budget.ratio >= 0.85) {
-      maxTokens = 250;
-      budgetNote = 'Sua energia mental esta quase esgotada por hoje. Seja bem simples e direto.';
+      maxTokens = 450;
+      budgetNote = 'Sua energia mental esta quase esgotada por hoje. Seja bem simples e direto na fala e no pensamento.';
     } else if (budget.ratio >= 0.65) {
-      maxTokens = 400;
+      maxTokens = 600;
       budgetNote = 'Voce sente que precisa economizar pensamento hoje.';
     } else if (budget.ratio >= 0.40) {
-      maxTokens = 550;
+      maxTokens = 750;
       budgetNote = 'Modere um pouco a extensao do seu raciocinio hoje.';
     }
 

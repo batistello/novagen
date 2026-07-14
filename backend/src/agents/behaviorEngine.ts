@@ -2,10 +2,13 @@ import { db } from '../db';
 import { getIntention, setWanderTarget, isIntentionExpiredOrInterrupted, StoredIntention, setBuildDirection, incrementBuildCount } from './intentionStore';
 import { isNearGrass, tryConsumeFood, GRASS_LOCATION } from './hungerSystem';
 import { notifyWitnesses } from './memoryTiers';
-import { findNearbyResource, tryGatherResource, consumeForBuild, tryDrinkWater, tryFish, tryCraft, RECIPES } from './resourceSystem';
+import {
+  findNearbyResource, tryGatherResource, consumeForBuild, tryDrinkWater, tryFish, tryCraft, RECIPES,
+  tryEquip, tryUnequip, tryDrop, tryGiveItem, canAttack, computeAttackDamage, registerAttack, getEquipment
+} from './resourceSystem';
 import { broadcastEvent, broadcastFullState } from '../ws/server';
 
-const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho' };
+const AGENT_NAMES: Record<string, string> = { blue: 'Azul', red: 'Vermelho', green: 'Verde' };
 const WORLD_HALF = 150;
 const PROXIMITY_CHECK_UNITS = 30;
 
@@ -357,6 +360,111 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
           agentId, self.x, self.y,
           `Tentei montar algo (${itemKey}), mas nao tinha os materiais certos guardados.`,
           (name) => `Vi ${name} tentar montar algo sem ter os materiais certos.`
+        );
+      }
+      break;
+    }
+    case 'attack': {
+      const self = loadState(agentId);
+      if (!otherId) {
+        actionType = 'observe';
+        break;
+      }
+      const distToOther = distanceBetween(agentId, otherId);
+      if (distToOther > 15) {
+        const other = loadState(otherId);
+        moveTowards(agentId, other.x, other.y, 6);
+        moved = true;
+        actionType = 'walk';
+        break;
+      }
+      if (!canAttack(agentId)) {
+        actionType = 'attack_on_cooldown';
+        break;
+      }
+      const damage = computeAttackDamage(agentId, otherId);
+      registerAttack(agentId);
+      const otherState = loadState(otherId);
+      const newHp = Math.max(0, (otherState as any).hp - damage);
+      const newStatus = newHp <= 0 ? 'dead' : otherState.status;
+      db.prepare(`UPDATE agent_state SET hp = ?, status = ? WHERE agent_id = ?`).run(newHp, newStatus, otherId);
+      actionType = 'attack_success';
+
+      notifyWitnesses(
+        agentId, self.x, self.y,
+        `Ataquei ${AGENT_NAMES[otherId] ?? otherId} e causei dano.`,
+        (name) => `Vi ${name} atacar alguem.`
+      );
+      notifyWitnesses(
+        otherId, otherState.x, otherState.y,
+        `Fui atacado por ${AGENT_NAMES[agentId] ?? agentId} e sofri dano.`,
+        (name) => `Vi ${name} ser atacado.`
+      );
+
+      if (newStatus === 'dead') {
+        const alreadyMarked = db.prepare(
+          `SELECT id FROM world_objects WHERE type = 'corpse' AND created_by = ? LIMIT 1`
+        ).get(otherId);
+        if (!alreadyMarked) {
+          const AGENT_COLORS_LOCAL: Record<string, string> = { blue: '#3498db', red: '#e74c3c', green: '#2ecc71' };
+          db.prepare(
+            `INSERT INTO world_objects (created_by, type, x, y, color, label, created_at) VALUES (?, 'corpse', ?, ?, ?, ?, ?)`
+          ).run(otherId, otherState.x, otherState.y, AGENT_COLORS_LOCAL[otherId] ?? '#888', `restos de ${AGENT_NAMES[otherId] ?? otherId}`, Date.now());
+
+          const { recordDiaryEntry } = require('./worldDiary');
+          recordDiaryEntry(`${AGENT_NAMES[otherId] ?? otherId} foi morto por ${AGENT_NAMES[agentId] ?? agentId}.`, 'CONFLITO');
+        }
+      }
+
+      broadcastFullState();
+      break;
+    }
+    case 'equip': {
+      const self = loadState(agentId);
+      if (!intention.item_key) {
+        actionType = 'observe';
+        break;
+      }
+      const result = tryEquip(agentId, intention.item_key);
+      actionType = result.success ? 'equip_success' : 'equip_failed';
+      break;
+    }
+    case 'unequip': {
+      const slot = (intention.equip_slot as 'hand' | 'clothes') || 'hand';
+      tryUnequip(agentId, slot);
+      actionType = 'unequip_success';
+      break;
+    }
+    case 'drop': {
+      if (!intention.item_key) {
+        actionType = 'observe';
+        break;
+      }
+      const result = tryDrop(agentId, intention.item_key);
+      actionType = result.success ? 'drop_success' : 'drop_failed';
+      break;
+    }
+    case 'give': {
+      const self = loadState(agentId);
+      if (!otherId || !intention.item_key) {
+        actionType = 'observe';
+        break;
+      }
+      const other = loadState(otherId);
+      const dist = distanceBetween(agentId, otherId);
+      if (dist > 20) {
+        moveTowards(agentId, other.x, other.y, 6);
+        moved = true;
+        actionType = 'walk';
+        break;
+      }
+      const result = tryGiveItem(agentId, otherId, intention.item_key, self.x, self.y, other.x, other.y);
+      actionType = result.success ? 'give_success' : 'give_failed';
+      if (result.success) {
+        notifyWitnesses(
+          agentId, self.x, self.y,
+          `Dei ${intention.item_key} para ${AGENT_NAMES[otherId] ?? otherId}.`,
+          (name) => `Vi ${name} dar algo para outra entidade.`
         );
       }
       break;
