@@ -5,6 +5,7 @@ import { growResources } from './agents/resourceSystem';
 import { tickWolves, getNearbyWolves } from './agents/wolfSystem';
 import { tickHuntWolfTask, startHuntWolfTask } from './world/tasks/huntWolfTask';
 import { getNextQueuedTask, markTaskAsStarted, enqueueTask } from './world/tasks/taskQueue';
+import { evaluateWakeDecision } from './world/wakeTriggers/wakeTriggers';
 import { planGoal } from './world/planner/planner';
 import { buildWorldEventsText } from './world/perception/perceptionBuilder';
 import { tickRodents, getAliveRodents } from './agents/rodentSystem';
@@ -407,12 +408,23 @@ function behaviorLoop() {
 
     if (checkProximityInterrupt(agentId)) {
       markIntentionInterrupted(agentId);
-      console.log(`[${AGENT_NAMES[agentId]}] intencao interrompida por proximidade.`);
+      const wakeDecision1 = evaluateWakeDecision({
+        hasIntention: !!intention, taskStillRunning: false,
+        intentionExpiredOrInterrupted: true, proximityInterrupted: true,
+        tookDamageThisTick: false, taskFailedReason: null,
+      });
+      console.log(`[${AGENT_NAMES[agentId]}] intencao interrompida por proximidade. Gatilho: ${wakeDecision1.trigger}`);
       think(agentId);
       return;
     }
 
     if (!intention || isIntentionExpiredOrInterrupted(intention)) {
+      const wakeDecision2 = evaluateWakeDecision({
+        hasIntention: !!intention, taskStillRunning: false,
+        intentionExpiredOrInterrupted: true, proximityInterrupted: false,
+        tookDamageThisTick: false, taskFailedReason: null,
+      });
+      console.log(`[${AGENT_NAMES[agentId]}] pensando de novo. Gatilho: ${wakeDecision2.trigger}`);
       think(agentId);
       return;
     }
