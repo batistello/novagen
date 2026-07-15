@@ -4,6 +4,8 @@ import { applyHungerDecay, growPlants, describeHungerQualitative, describeEnergy
 import { growResources } from './agents/resourceSystem';
 import { tickWolves, getNearbyWolves } from './agents/wolfSystem';
 import { tickHuntWolfTask, startHuntWolfTask } from './world/tasks/huntWolfTask';
+import { getNextQueuedTask, markTaskAsStarted, enqueueTask } from './world/tasks/taskQueue';
+import { planGoal } from './world/planner/planner';
 import { buildWorldEventsText } from './world/perception/perceptionBuilder';
 import { tickRodents, getAliveRodents } from './agents/rodentSystem';
 import { applyHpRegen, describeHpQualitative } from './agents/hpSystem';
@@ -328,6 +330,9 @@ ${visibleAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", d
     const intention = parseIntention(llmResult.raw);
     saveIntention(agentId, intention);
 
+    const plannedTasks = planGoal(intention.goal_type, intention.target_wolf_id ?? null);
+    plannedTasks.forEach(t => enqueueTask(agentId, t.taskType, t.targetId, t.priority));
+
     if (intention.belief_about_agent_id && intention.belief_text) {
       updateBelief(agentId, intention.belief_about_agent_id, intention.belief_text);
     }
@@ -389,6 +394,13 @@ function behaviorLoop() {
 
     const taskStillRunning = tickHuntWolfTask(agentId);
     if (taskStillRunning) {
+      return;
+    }
+
+    const nextQueued = getNextQueuedTask(agentId);
+    if (nextQueued && nextQueued.task_type === 'hunt_wolf' && nextQueued.target_id != null) {
+      markTaskAsStarted(nextQueued.id);
+      startHuntWolfTask(agentId, nextQueued.target_id);
       return;
     }
     const intention = getIntention(agentId);
