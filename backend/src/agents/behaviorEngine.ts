@@ -169,7 +169,7 @@ const TERMINAL_ACTION_TYPES = new Set([
 export function behaviorTick(agentId: string): { acted: boolean; goalType: string | null; terminal: boolean } {
   const intention = getIntention(agentId);
   if (!intention || isIntentionExpiredOrInterrupted(intention)) {
-    return { acted: false, goalType: intention?.goal_type ?? null };
+    return { acted: false, goalType: intention?.goal_type ?? null, terminal: false };
   }
 
   const otherId = resolveTargetId(agentId, intention.target_agent_id ?? null);
