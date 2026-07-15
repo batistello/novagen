@@ -700,44 +700,6 @@ function setLogStatus(text, connected) {
   status.className = connected ? 'status' : 'status disconnected';
 }
 
-const WANDER_IDLE_THRESHOLD_MS = 6000;
-const WANDER_STEP_PX = 4;
-
-function idleWanderTick() {
-  Object.keys(agentSprites).forEach(agentId => {
-    const sprite = agentSprites[agentId];
-    if (!sprite) return;
-    if (sleepIndicators[agentId] || deadAgents.has(agentId)) return;
-
-    const lastUpdate = lastRealUpdate[agentId] || 0;
-    const idleFor = Date.now() - lastUpdate;
-    if (idleFor < WANDER_IDLE_THRESHOLD_MS) return;
-
-    const angle = Math.random() * Math.PI * 2;
-    let newX = sprite.x + Math.cos(angle) * WANDER_STEP_PX;
-    let newY = sprite.y + Math.sin(angle) * WANDER_STEP_PX;
-
-    const tooClose = Object.keys(agentSprites).some(otherId => {
-      if (otherId === agentId) return false;
-      const otherSprite = agentSprites[otherId];
-      if (!otherSprite) return false;
-      const dx = newX - otherSprite.x;
-      const dy = newY - otherSprite.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      return dist < MIN_AGENT_DISTANCE;
-    });
-    if (tooClose) return;
-
-
-    newX = Math.max(15, Math.min(WORLD_SIZE - 15, newX));
-    newY = Math.max(15, Math.min(WORLD_SIZE - 15, newY));
-
-    sprite.x = newX;
-    sprite.y = newY;
-  });
-}
-
-setInterval(idleWanderTick, 1200);
 
 function connect() {
 
