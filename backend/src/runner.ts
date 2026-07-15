@@ -3,8 +3,7 @@ import { getTier, PASSIVE_REGEN_PER_MIN, SLEEP_REGEN_PER_MIN } from './agents/en
 import { applyHungerDecay, growPlants, describeHungerQualitative, describeEnergyQualitative, describePlantStage } from './agents/hungerSystem';
 import { growResources } from './agents/resourceSystem';
 import { tickWolves, getNearbyWolves } from './agents/wolfSystem';
-import { getAliveRodents } from './agents/rodentSystem';
-import { tickRodents } from './agents/rodentSystem';
+import { tickHuntWolfTask, startHuntWolfTask } from './world/tasks/huntWolfTask';
 import { applyHpRegen, describeHpQualitative } from './agents/hpSystem';
 import { initWebSocketServer } from './ws/server';
 import { getIntention, saveIntention, isIntentionExpiredOrInterrupted, markIntentionInterrupted } from './agents/intentionStore';
@@ -383,6 +382,11 @@ function behaviorLoop() {
 
   AGENT_IDS.forEach(agentId => {
     applyHpRegen(agentId);
+
+    const taskStillRunning = tickHuntWolfTask(agentId);
+    if (taskStillRunning) {
+      return;
+    }
     const intention = getIntention(agentId);
 
     if (checkProximityInterrupt(agentId)) {
