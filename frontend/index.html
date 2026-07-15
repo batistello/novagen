@@ -68,17 +68,23 @@
 <div id="app"></div>
 <div id="log-panel">
   <div id="panel-fixed">
-    <div id="log-status" class="status">conectando...</div>
-    <div id="hunger-status"></div>
-    <div id="inventory-status"></div>
-    <button id="diary-toggle">Diario do Mundo</button>
-    <div id="diary-panel"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div id="log-status" class="status">conectando...</div>
+      <button id="panel-minimize-toggle" style="background:#222; color:#ccc; border:1px solid #444; border-radius:4px; padding:2px 8px; font-size:11px; cursor:pointer;">▲</button>
+    </div>
+    <div id="panel-collapsible">
+      <div id="hunger-status"></div>
+      <div id="inventory-status"></div>
+      <div id="sleep-cycle-status" style="font-size:11px; color:#999; margin-bottom:8px; line-height:1.5;"></div>
+      <button id="diary-toggle">Diario do Mundo</button>
+      <div id="diary-panel"></div>
+    </div>
   </div>
   <div id="log-entries-wrapper">
     <div id="log-entries"></div>
   </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.4.0/pixi.min.js"></script>
-<script src="main.js?v=29"></script>
+<script src="main.js?v=31"></script>
 </body>
 </html>

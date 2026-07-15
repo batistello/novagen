@@ -8,6 +8,14 @@ export function recordCategorizedMemory(
   content: string,
   relatedAgentId?: string
 ) {
+  const last = db.prepare(
+    `SELECT content FROM agent_memories WHERE agent_id = ? AND category = ? ORDER BY created_at DESC LIMIT 1`
+  ).get(agentId, category) as { content: string } | undefined;
+
+  if (last && last.content === content) {
+    return;
+  }
+
   db.prepare(
     `INSERT INTO agent_memories (agent_id, category, content, related_agent_id, created_at) VALUES (?, ?, ?, ?, ?)`
   ).run(agentId, category, content, relatedAgentId ?? null, Date.now());

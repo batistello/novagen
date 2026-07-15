@@ -65,6 +65,10 @@ function getFullState() {
   const resting = computeRestingMap(states);
   const diary = getWorldDiary();
   const items = db.prepare(`SELECT agent_id, item_key, quantity FROM agent_items WHERE quantity > 0`).all();
+  const sleepCycles = db.prepare(`
+    SELECT agent_id, event_type, occurred_at FROM agent_activity_log a
+    WHERE occurred_at = (SELECT MAX(occurred_at) FROM agent_activity_log b WHERE b.agent_id = a.agent_id)
+  `).all();
   const wolves = db.prepare(`SELECT id, x, y, hp, max_hp, status FROM wolves WHERE status = 'alive'`).all();
   const rodents = db.prepare(`SELECT id, x, y, status FROM rodents WHERE status = 'alive'`).all();
 
@@ -79,6 +83,7 @@ function getFullState() {
     items,
     wolves,
     rodents,
+    sleepCycles,
   };
 }
 

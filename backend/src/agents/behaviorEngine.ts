@@ -136,9 +136,15 @@ function resolveTargetId(agentId: string, targetAgentId: string | null): string 
   return getClosestAgentId(agentId, others);
 }
 
+const PROXIMITY_INTERRUPT_COOLDOWN_MS = 60_000;
+
 export function checkProximityInterrupt(agentId: string): boolean {
   const intention = getIntention(agentId);
   if (!intention || intention.interrupt_on_proximity == null) return false;
+
+  const timeSinceIntentionStarted = Date.now() - intention.started_at;
+  if (timeSinceIntentionStarted < PROXIMITY_INTERRUPT_COOLDOWN_MS) return false;
+
   const others = getOtherAgentIds(agentId);
   return others.some(otherId => distanceBetween(agentId, otherId) <= intention.interrupt_on_proximity!);
 }
@@ -552,6 +558,33 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
           (name) => `Vi ${name} capturar um pequeno animal.`
         );
       }
+      break;
+    }
+    case 'approach_object': {
+      const self = loadState(agentId);
+      if (intention.target_object_id == null) {
+        actionType = 'observe';
+        break;
+      }
+      const obj = db.prepare(`SELECT id, x, y, type, label FROM world_objects WHERE id = ? AND removed_at IS NULL`).get(intention.target_object_id) as
+        { id: number; x: number; y: number; type: string; label: string | null } | undefined;
+      if (!obj) {
+        actionType = 'observe';
+        break;
+      }
+      const dist = Math.sqrt((obj.x - self.x) ** 2 + (obj.y - self.y) ** 2);
+      if (dist > 15) {
+        moveTowards(agentId, obj.x, obj.y, 6);
+        moved = true;
+        actionType = 'walk';
+        break;
+      }
+      actionType = 'approach_object_success';
+      notifyWitnesses(
+        agentId, self.x, self.y,
+        `Cheguei perto o suficiente de algo que percebi (${obj.type}) para examinar de verdade.`,
+        (name) => `Vi ${name} se aproximar de algo com atencao.`
+      );
       break;
     }
     case 'observe': {

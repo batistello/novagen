@@ -151,6 +151,15 @@ async function think(agentId: string) {
     const recentMemory = getRecentMemoryFor(agentId, 15);
     const episodicMemory = getMemoriesByCategory(agentId, 'episodic', 6);
     const socialMemory = getMemoriesByCategory(agentId, 'social', 6);
+    const knowledgeMemory = getMemoriesByCategory(agentId, 'knowledge', 10);
+    const currentGoals = db.prepare(`SELECT short_term_goal, medium_term_goal, long_term_goal FROM agent_state WHERE agent_id = ?`).get(agentId) as {
+      short_term_goal: string | null; medium_term_goal: string | null; long_term_goal: string | null;
+    };
+    const goalsText = (currentGoals.medium_term_goal || currentGoals.long_term_goal)
+      ? `Seus objetivos atuais:
+${currentGoals.medium_term_goal ? `  - Medio prazo: ${currentGoals.medium_term_goal}
+` : ''}${currentGoals.long_term_goal ? `  - Longo prazo: ${currentGoals.long_term_goal}` : ''}`
+      : '';
     const beliefs = getBeliefs(agentId);
     const beliefsText = beliefs.length > 0
       ? `Sua opiniao formada sobre as outras entidades, baseada no que voce ja viveu:\n${beliefs.map(b => `  - Sobre ${AGENT_NAMES[b.about_agent_id] ?? b.about_agent_id}: ${b.belief_text}`).join('\n')}`
@@ -271,6 +280,8 @@ ${rodentsText}
 
 ${episodicMemory.length > 0 ? `Voce se lembra de coisas que ja viveu:\n${episodicMemory.map(m => `  - ${m}`).join('\n')}` : ''}
 ${socialMemory.length > 0 ? `Voce se lembra de coisas que percebeu sobre as outras entidades:\n${socialMemory.map(m => `  - ${m}`).join('\n')}` : ''}
+${knowledgeMemory.length > 0 ? `Coisas que voce concluiu ou aprendeu ao longo do tempo:\n${knowledgeMemory.map(m => `  - ${m}`).join('\n')}` : ''}
+${goalsText}
 ${beliefsText}
 ${contractsText}
 Voce nao sabe o que existe alem do que consegue perceber aqui.
@@ -300,6 +311,16 @@ ${visibleAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", d
 
     if (intention.belief_about_agent_id && intention.belief_text) {
       updateBelief(agentId, intention.belief_about_agent_id, intention.belief_text);
+    }
+
+    if (intention.medium_term_goal || intention.long_term_goal) {
+      db.prepare(`UPDATE agent_state SET medium_term_goal = COALESCE(?, medium_term_goal), long_term_goal = COALESCE(?, long_term_goal), goals_updated_at = ? WHERE agent_id = ?`)
+        .run(intention.medium_term_goal ?? null, intention.long_term_goal ?? null, Date.now(), agentId);
+    }
+
+    if (intention.memory_note) {
+      const { recordCategorizedMemory } = await import('./agents/memoryTiers');
+      recordCategorizedMemory(agentId, 'knowledge', intention.memory_note);
     }
 
     if (intention.contract_proposal && intention.contract_proposal_to) {

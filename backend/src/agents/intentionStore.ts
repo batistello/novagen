@@ -26,6 +26,7 @@ export interface StoredIntention {
   equip_slot: string | null;
   target_wolf_id: number | null;
   target_rodent_id: number | null;
+  target_object_id: number | null;
 }
 
 export function saveIntention(agentId: string, intention: Intention) {
@@ -33,8 +34,8 @@ export function saveIntention(agentId: string, intention: Intention) {
   const expiresAt = now + intention.duration_minutes * 60_000;
 
   db.prepare(`
-    INSERT INTO agent_intentions (agent_id, goal_type, target_agent_id, target_x, target_y, wander_x, wander_y, priority, interrupt_on_speech, interrupt_on_proximity, raw_speech, raw_thought, emotion, started_at, expires_at, status, build_purpose, build_dir_x, build_dir_y, build_count, craft_item, item_key, equip_slot, target_wolf_id, target_rodent_id)
-    VALUES (@agent_id, @goal_type, @target_agent_id, NULL, NULL, NULL, NULL, 'normal', @interrupt_on_speech, @interrupt_on_proximity, @raw_speech, @raw_thought, @emotion, @started_at, @expires_at, 'active', @build_purpose, NULL, NULL, 0, @craft_item, @item_key, @equip_slot, @target_wolf_id, @target_rodent_id)
+    INSERT INTO agent_intentions (agent_id, goal_type, target_agent_id, target_x, target_y, wander_x, wander_y, priority, interrupt_on_speech, interrupt_on_proximity, raw_speech, raw_thought, emotion, started_at, expires_at, status, build_purpose, build_dir_x, build_dir_y, build_count, craft_item, item_key, equip_slot, target_wolf_id, target_rodent_id, target_object_id)
+    VALUES (@agent_id, @goal_type, @target_agent_id, NULL, NULL, NULL, NULL, 'normal', @interrupt_on_speech, @interrupt_on_proximity, @raw_speech, @raw_thought, @emotion, @started_at, @expires_at, 'active', @build_purpose, NULL, NULL, 0, @craft_item, @item_key, @equip_slot, @target_wolf_id, @target_rodent_id, @target_object_id)
     ON CONFLICT(agent_id) DO UPDATE SET
       goal_type=excluded.goal_type, target_agent_id=excluded.target_agent_id,
       wander_x=NULL, wander_y=NULL,
@@ -43,7 +44,7 @@ export function saveIntention(agentId: string, intention: Intention) {
       started_at=excluded.started_at, expires_at=excluded.expires_at, status='active',
       build_purpose=excluded.build_purpose, build_dir_x=NULL, build_dir_y=NULL, build_count=0,
       craft_item=excluded.craft_item, item_key=excluded.item_key, equip_slot=excluded.equip_slot,
-      target_wolf_id=excluded.target_wolf_id, target_rodent_id=excluded.target_rodent_id
+      target_wolf_id=excluded.target_wolf_id, target_rodent_id=excluded.target_rodent_id, target_object_id=excluded.target_object_id
   `).run({
     agent_id: agentId,
     goal_type: intention.goal_type,
@@ -61,6 +62,7 @@ export function saveIntention(agentId: string, intention: Intention) {
     equip_slot: intention.equip_slot ?? null,
     target_wolf_id: intention.target_wolf_id ?? null,
     target_rodent_id: intention.target_rodent_id ?? null,
+    target_object_id: intention.target_object_id ?? null,
   });
 }
 

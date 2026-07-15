@@ -153,6 +153,7 @@ Escolha um "goal_type" entre:
 - "drop": largar algo que voce tem guardado, se preencher "item_key" com o nome exato do que possui. Isso remove o item permanentemente do que voce carrega.
 - "give": entregar algo que voce tem guardado para outra entidade proxima. Preencha "target_agent_id" com o id dela e "item_key" com o que deseja entregar.
 - "attack": confrontar fisicamente outra entidade proxima. Preencha "target_agent_id" com o id dela.
+- "approach_object": ir ate um objeto especifico que voce percebeu (uma pedra, arvore, ou qualquer outra coisa com id), para examinar de perto. Preencha "target_object_id" com o id exato do objeto.
 
 Se escolher "build", voce DEVE preencher "build_purpose" com uma frase curta explicando o que esta tentando construir e por que (ex: "uma barreira para separar meu espaco", "um marco para lembrar deste lugar"). Isso da continuidade as suas construcoes ao longo do tempo — cada vez que voce escolher "build" de novo com a mesma intencao ativa, o sistema vai continuar erguendo a mesma estrutura na mesma direcao, entao pense em um proposito que faca sentido manter por varios ciclos.
 Voce so pode construir se tiver material (voce vai perceber se tem algo guardado atraves da sua propria experiencia recente); sem material, tentar construir nao funciona.
@@ -161,6 +162,8 @@ Defina tambem:
 - "duration_minutes": por quanto tempo pretende manter essa intencao (1 a 15 minutos)
 - "interrupt_on_speech": true se quiser ser interrompido assim que a outra entidade falar algo (util quando voce quer estar disponivel para dialogo), false se quiser manter o foco mesmo que ela fale
 - "interrupt_on_proximity": um numero de distancia (ex: 20) que, se a outra entidade chegar mais perto que isso, interrompe sua intencao atual — ou null se nao se importa com isso
+Antes de decidir, considere o que ja esta descrito nas secoes acima sobre suas memorias, seu conhecimento acumulado, suas opinioes sobre as outras entidades e seus objetivos atuais — sua decisao deve ser coerente com essa historia, nao ignora-la.
+
 Responda APENAS em JSON valido no formato:
 {
   "speech": "...",
@@ -177,10 +180,15 @@ Responda APENAS em JSON valido no formato:
   "contract_proposal": null,
   "contract_proposal_to": null,
   "contract_response_id": null,
-  "contract_response_accept": null
+  "contract_response_accept": null,
+  "medium_term_goal": null,
+  "long_term_goal": null,
+  "memory_note": null
 }
-Se, apos o que voce viveu e observou, voce formou ou revisou uma opiniao subjetiva sobre outra entidade especifica (ex: "parece egoista", "parece confiavel", "esta escondendo algo"), preencha "belief_about_agent_id" com o id dela e "belief_text" com uma frase curta descrevendo essa opiniao. Essa opiniao fica guardada e volta a aparecer para voce em ciclos futuros, influenciando como voce a ve. So preencha isso quando realmente formar ou mudar uma opiniao; na maioria dos ciclos, deixe ambos como null.
+Se, apos o que voce viveu e observou, voce formou ou revisou uma opiniao subjetiva sobre outra entidade especifica (ex: "parece egoista", "parece confiavel", "esta escondendo algo"), preencha "belief_about_agent_id" com o id dela e "belief_text" com uma frase curta descrevendo essa opiniao. Essa opiniao fica guardada e volta a aparecer para voce em ciclos futuros, influenciando como voce a ve. Se algo que voce vivenciar contradizer uma opiniao que ja tinha (por exemplo, achava alguem confiavel mas essa entidade fez algo que quebrou essa confianca), revise a opiniao preenchendo esses campos de novo com o texto atualizado; a opiniao antiga e substituida pela nova. So preencha isso quando realmente formar ou mudar uma opiniao; na maioria dos ciclos, deixe ambos como null.
 Voce tambem pode propor um acordo a outra entidade, se fizer sentido para sua intencao (ex: "vou dividir a comida com voce" ou "nao vou me aproximar da sua area"). Para propor, preencha "contract_proposal" com os termos e "contract_proposal_to" com o id da entidade. Isso e apenas uma promessa verbal; nada garante que sera cumprida, nem por voce nem pela outra parte.
 Se alguem propos um acordo a voce (voce vera isso na secao de percepcao, se houver), pode responder preenchendo "contract_response_id" com o id exato do acordo e "contract_response_accept" com true (aceitar) ou false (recusar).
+Voce pode definir ou revisar objetivos de prazo mais longo, que continuam existindo mesmo depois que sua intencao atual terminar. Preencha "medium_term_goal" com algo que pretende alcancar em um periodo mais proximo (ex: "preciso conseguir comida antes que a fome fique critica"), e "long_term_goal" com algo mais distante e abstrato (ex: "quero entender do que este lugar e feito" ou "quero construir um abrigo"). So preencha quando quiser definir ou mudar esses objetivos; caso contrario, deixe null e o objetivo anterior continua valendo.
+Sempre que voce descobrir algo importante, ou tomar uma decisao que molde sua percepcao do mundo, das coisas ao seu redor ou de si mesmo, registre isso preenchendo "memory_note" com uma frase curta e especifica (ex: "a fonte de agua no centro parece ser a unica daquele tipo por aqui" ou "percebi que ficar muito tempo parado nao muda minha fome"). Isso fica guardado permanentemente como conhecimento seu, disponivel para voce em ciclos futuros. So preencha quando realmente valer a pena lembrar; na maioria dos ciclos, deixe null.
 Nao inclua nada fora desse JSON.`;
 }

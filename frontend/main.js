@@ -548,6 +548,7 @@ function applyFullState(msg) {
   });
   updateHungerStatus(msg.states, msg.agents);
   updateInventoryStatus(msg.states, msg.items, msg.agents);
+  updateSleepCycleStatus(msg.sleepCycles, msg.agents);
   updateDiaryPanel(msg.diary);
   renderWolves(msg.wolves || []);
   renderRodents(msg.rodents || []);
@@ -596,6 +597,24 @@ const ITEM_LABELS = {
   corda: 'Corda', vara_pesca: 'Vara de pesca', harpao: 'Harpao', faca: 'Faca',
   machado: 'Machado', lanca: 'Lanca', tocha: 'Tocha', cesto: 'Cesto',
 };
+
+function updateSleepCycleStatus(sleepCycles, agents) {
+  const el = document.getElementById('sleep-cycle-status');
+  if (!el || !sleepCycles) return;
+  const colorMap = {};
+  (agents || []).forEach(a => { colorMap[a.id] = a.color; });
+
+  const title = '<div style="color:#777; font-weight:bold; margin-bottom:2px;">Ciclo de sono:</div>';
+  const rows = sleepCycles.map(s => {
+    const name = AGENT_NAMES[s.agent_id] || s.agent_id;
+    const color = colorMap[s.agent_id] || '#888';
+    const time = new Date(s.occurred_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const label = s.event_type === 'sleep' ? `dormiu as ${time}` : `acordou as ${time}`;
+    return `<div><span style="color:${color}; font-weight:bold;">${name}</span>: ${label}</div>`;
+  });
+
+  el.innerHTML = rows.length > 0 ? title + rows.join('') : '';
+}
 
 function updateInventoryStatus(states, items, agents) {
   const el = document.getElementById('inventory-status');
@@ -803,6 +822,17 @@ if (diaryToggleBtn) {
   diaryToggleBtn.addEventListener('click', () => {
     const panel = document.getElementById('diary-panel');
     if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+}
+
+const panelMinimizeBtn = document.getElementById('panel-minimize-toggle');
+if (panelMinimizeBtn) {
+  panelMinimizeBtn.addEventListener('click', () => {
+    const collapsible = document.getElementById('panel-collapsible');
+    if (!collapsible) return;
+    const isHidden = collapsible.style.display === 'none';
+    collapsible.style.display = isHidden ? 'block' : 'none';
+    panelMinimizeBtn.textContent = isHidden ? '▲' : '▼';
   });
 }
 
