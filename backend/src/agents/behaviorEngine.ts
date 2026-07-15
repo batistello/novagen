@@ -149,7 +149,24 @@ export function checkProximityInterrupt(agentId: string): boolean {
   return others.some(otherId => distanceBetween(agentId, otherId) <= intention.interrupt_on_proximity!);
 }
 
-export function behaviorTick(agentId: string): { acted: boolean; goalType: string | null } {
+const TERMINAL_ACTION_TYPES = new Set([
+  'collect_success', 'collect_failed',
+  'gather_success', 'gather_failed',
+  'drink_success', 'drink_failed',
+  'fish_success', 'fish_failed',
+  'craft_success', 'craft_failed',
+  'equip_success', 'equip_failed',
+  'unequip_success',
+  'drop_success', 'drop_failed',
+  'give_success', 'give_failed',
+  'attack_success',
+  'attack_wolf_success', 'attack_wolf_failed',
+  'attack_rodent_success', 'attack_rodent_failed',
+  'approach_object_success',
+  'create_object',
+]);
+
+export function behaviorTick(agentId: string): { acted: boolean; goalType: string | null; terminal: boolean } {
   const intention = getIntention(agentId);
   if (!intention || isIntentionExpiredOrInterrupted(intention)) {
     return { acted: false, goalType: intention?.goal_type ?? null };
@@ -633,5 +650,5 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
     });
   }
 
-  return { acted: true, goalType: intention.goal_type };
+  return { acted: true, goalType: intention.goal_type, terminal: TERMINAL_ACTION_TYPES.has(actionType) };
 }

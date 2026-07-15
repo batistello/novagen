@@ -432,7 +432,11 @@ function behaviorLoop() {
       return;
     }
 
-    behaviorTick(agentId);
+    const behaviorResult = behaviorTick(agentId);
+    if (behaviorResult.terminal) {
+      markIntentionInterrupted(agentId);
+      console.log(`[${AGENT_NAMES[agentId]}] acao concluida (${behaviorResult.goalType}), acordando imediatamente. Gatilho: goal_finished`);
+    }
   });
 
   setTimeout(behaviorLoop, BEHAVIOR_TICK_MS);
