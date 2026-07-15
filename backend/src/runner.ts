@@ -4,6 +4,7 @@ import { applyHungerDecay, growPlants, describeHungerQualitative, describeEnergy
 import { growResources } from './agents/resourceSystem';
 import { tickWolves, getNearbyWolves } from './agents/wolfSystem';
 import { tickHuntWolfTask, startHuntWolfTask } from './world/tasks/huntWolfTask';
+import { buildWorldEventsText } from './world/perception/perceptionBuilder';
 import { tickRodents, getAliveRodents } from './agents/rodentSystem';
 import { applyHpRegen, describeHpQualitative } from './agents/hpSystem';
 import { initWebSocketServer } from './ws/server';
@@ -264,6 +265,7 @@ ${currentGoals.medium_term_goal ? `  - Medio prazo: ${currentGoals.medium_term_g
       }
     }
 
+    const worldEventsText = buildWorldEventsText(state.x, state.y);
     let grassLine = '';
     if (distToGrass <= 70) {
       const plants = db.prepare(`SELECT stage FROM food_slots WHERE status = 'available'`).all() as { stage: string }[];
@@ -292,6 +294,7 @@ ${objectsText}
 ${grassLine}
 ${wolvesText}
 ${rodentsText}
+${worldEventsText}
 
 ${episodicMemory.length > 0 ? `Voce se lembra de coisas que ja viveu:\n${episodicMemory.map(m => `  - ${m}`).join('\n')}` : ''}
 ${socialMemory.length > 0 ? `Voce se lembra de coisas que percebeu sobre as outras entidades:\n${socialMemory.map(m => `  - ${m}`).join('\n')}` : ''}

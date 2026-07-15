@@ -43,6 +43,8 @@ function handleRodentSpawn() {
     const y = (Math.random() - 0.5) * WORLD_HALF * 2;
     db.prepare(`INSERT INTO rodents (x, y, status, spawned_at, last_move_at) VALUES (?, ?, 'alive', ?, ?)`).run(x, y, now, now);
     db.prepare(`INSERT OR REPLACE INTO world_meta (key, value) VALUES ('rodent_last_spawn_at', ?)`).run(String(now));
+    const { recordWorldEvent } = require('../world/events/worldEvents');
+    recordWorldEvent('rodent_spawned', 'Algo pequeno e agil apareceu por perto.', x, y);
   }
 }
 

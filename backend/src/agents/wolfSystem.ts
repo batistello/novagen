@@ -68,9 +68,11 @@ export function getNearbyWolves(x: number, y: number, radius: number): (Wolf & {
 function handleAging() {
   const now = Date.now();
   const cutoff = now - WOLF_LIFESPAN_DAYS * 24 * 60 * 60 * 1000;
-  const old = db.prepare(`SELECT id FROM wolves WHERE status = 'alive' AND spawned_at <= ?`).all(cutoff) as { id: number }[];
+  const old = db.prepare(`SELECT id, x, y FROM wolves WHERE status = 'alive' AND spawned_at <= ?`).all(cutoff) as { id: number; x: number; y: number }[];
   old.forEach(w => {
     db.prepare(`UPDATE wolves SET status = 'dead' WHERE id = ?`).run(w.id);
+    const { recordWorldEvent } = require('../world/events/worldEvents');
+    recordWorldEvent('wolf_died', 'Um predador morreu de velhice por perto.', w.x, w.y);
   });
 }
 
