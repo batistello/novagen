@@ -12,6 +12,7 @@ import { behaviorTick, checkProximityInterrupt } from './agents/behaviorEngine';
 import { parseIntention } from './agents/actionSchema';
 import { buildIntentionPrompt, AgentContext } from './agents/systemPromptBuilder';
 import { getTokenBudgetStatus, recordTokenUsage } from './agents/tokenBudget';
+import { getRequestBudgetStatus, recordRequestUsage } from './agents/requestBudget';
 import { getRecentMemoryFor, recordEvent } from './agents/memory';
 import { getMemoriesByCategory } from './agents/memoryTiers';
 import { updateBelief, getBeliefs } from './agents/theoryOfMind';
@@ -120,6 +121,15 @@ async function think(agentId: string) {
       console.log(`[${AGENT_NAMES[agentId]}] em '${tier.name}', sem nova intencao neste ciclo.`);
       const { broadcastEvent: be1 } = await import('./ws/server');
       be1({ type: 'agent_status', agentId, resting: true, reason: 'energy' });
+      logActivityTransition(agentId, 'asleep');
+      return;
+    }
+
+    const requestBudget = getRequestBudgetStatus(agentId);
+    if (requestBudget.exhausted) {
+      console.log(`[${AGENT_NAMES[agentId]}] limite de requisicoes esgotado (${requestBudget.used}/${requestBudget.limit}), sem nova intencao.`);
+      const { broadcastEvent: be2b } = await import('./ws/server');
+      be2b({ type: 'agent_status', agentId, resting: true, reason: 'requests' });
       logActivityTransition(agentId, 'asleep');
       return;
     }
@@ -302,6 +312,7 @@ ${visibleAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", d
     const userPrompt = 'Decida sua intencao para os proximos minutos.';
 
     const provider = AGENT_PROVIDER[agentId];
+    recordRequestUsage(agentId);
     const llmResult = provider === 'groq'
       ? await callGroq(systemPrompt, userPrompt, maxTokens)
       : await callGemini(systemPrompt, userPrompt, maxTokens, getGeminiKeyFor(agentId));
