@@ -245,7 +245,7 @@ ${currentGoals.medium_term_goal ? `  - Medio prazo: ${currentGoals.medium_term_g
           const dy = w.y - state.y;
           const dist = Math.round(Math.sqrt(dx * dx + dy * dy));
           return `  - id ${w.id}: uma presenca animal a ${dist} metros, ao ${compassDirection(dx, dy)}`;
-        }).join('\n') + '\nSe sua intencao for "attack_wolf", defina "target_wolf_id" com o id exato.';
+        }).join('\n') + '\nSe sua intencao for "attack_wolf" (um unico golpe) ou "hunt_wolf_task" (cacada continua ate terminar, sem precisar decidir de novo a cada passo), defina "target_wolf_id" com o id exato.';
       }
     }
 
