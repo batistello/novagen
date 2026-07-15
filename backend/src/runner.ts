@@ -4,6 +4,7 @@ import { applyHungerDecay, growPlants, describeHungerQualitative, describeEnergy
 import { growResources } from './agents/resourceSystem';
 import { tickWolves, getNearbyWolves } from './agents/wolfSystem';
 import { tickHuntWolfTask, startHuntWolfTask } from './world/tasks/huntWolfTask';
+import { tickRodents, getAliveRodents } from './agents/rodentSystem';
 import { applyHpRegen, describeHpQualitative } from './agents/hpSystem';
 import { initWebSocketServer } from './ws/server';
 import { getIntention, saveIntention, isIntentionExpiredOrInterrupted, markIntentionInterrupted } from './agents/intentionStore';
