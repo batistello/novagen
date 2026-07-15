@@ -580,9 +580,29 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
         break;
       }
       actionType = 'approach_object_success';
+
+      db.prepare(`
+        INSERT INTO agent_examined_objects (agent_id, object_id, examined_at) VALUES (?, ?, ?)
+        ON CONFLICT(agent_id, object_id) DO UPDATE SET examined_at = excluded.examined_at
+      `).run(agentId, obj.id, Date.now());
+
+      const OBJECT_DESCRIPTIONS: Record<string, string> = {
+        tree: 'uma arvore, parece ser fonte de madeira e fibra',
+        rock: 'uma pedra solida, parece ser fonte de material mineral',
+        water_source: 'uma fonte de agua',
+        grass_patch: 'uma planta que cresce e pode ser consumida quando madura',
+        corpse: 'restos de algo que ja existiu',
+        wood_piece: 'um pedaco de madeira trabalhada, feito por alguem',
+        stone_piece: 'um pedaco de pedra trabalhada, feito por alguem',
+        fence: 'uma cerca construida por alguem',
+        stone_wall: 'um muro de pedra construido por alguem',
+        stone_roof: 'um telhado de pedra construido por alguem',
+      };
+      const objDescription = OBJECT_DESCRIPTIONS[obj.type] ?? `algo do tipo ${obj.type}`;
+
       notifyWitnesses(
         agentId, self.x, self.y,
-        `Cheguei perto o suficiente de algo que percebi (${obj.type}) para examinar de verdade.`,
+        `Examinei de perto o que percebi: ${objDescription}${obj.label ? ` (chamado de "${obj.label}")` : ''}. Nao havia nada alem disso ali.`,
         (name) => `Vi ${name} se aproximar de algo com atencao.`
       );
       break;

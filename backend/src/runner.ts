@@ -226,8 +226,12 @@ ${currentGoals.medium_term_goal ? `  - Medio prazo: ${currentGoals.medium_term_g
       .filter(o => o.dist <= VISION_RADIUS)
       .sort((a, b) => a.dist - b.dist)
       .slice(0, 8);
+    const examinedIds = new Set(
+      (db.prepare(`SELECT object_id FROM agent_examined_objects WHERE agent_id = ?`).all(agentId) as { object_id: number }[])
+        .map(r => r.object_id)
+    );
     const objectsText = visibleObjects.length > 0
-      ? visibleObjects.map(o => `  - ${o.type}${o.label ? ` "${o.label}"` : ''} (id ${o.id}): a ${o.dist} metros, ao ${o.dir}`).join('\n')
+      ? visibleObjects.map(o => `  - ${o.type}${o.label ? ` "${o.label}"` : ''} (id ${o.id}): a ${o.dist} metros, ao ${o.dir}${examinedIds.has(o.id) ? ' (voce ja examinou isso de perto antes)' : ''}`).join('\n')
       : '  (nada visivel por perto)';
 
     const hungerValue = stateAfterHunger.hunger;
@@ -277,6 +281,7 @@ ${currentGoals.medium_term_goal ? `  - Medio prazo: ${currentGoals.medium_term_g
 Voce sente:
 - ${describeEnergyQualitative(energyAfterRegen)}
 - ${describeHungerQualitative(hungerValue)} (voce nao sabe exatamente o que essa sensacao significa nem como ela funciona, apenas a percebe)
+${hungerValue < 20 ? '- Voce sente que seu corpo esta ficando fisicamente mais fraco a cada momento que passa sem se alimentar. Se isso continuar, voce sabe que pode nao resistir.' : ''}
 ${budgetNote ? '- ' + budgetNote : ''}
 
 Voce percebe estas entidades:
