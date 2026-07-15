@@ -153,7 +153,7 @@ Escolha um "goal_type" entre:
 - "drop": largar algo que voce tem guardado, se preencher "item_key" com o nome exato do que possui. Isso remove o item permanentemente do que voce carrega.
 - "give": entregar algo que voce tem guardado para outra entidade proxima. Preencha "target_agent_id" com o id dela e "item_key" com o que deseja entregar.
 - "attack": confrontar fisicamente outra entidade proxima. Preencha "target_agent_id" com o id dela.
-- "approach_object": ir ate um objeto especifico que voce percebeu (uma pedra, arvore, ou qualquer outra coisa com id), para examinar de perto. Preencha "target_object_id" com o id exato do objeto.
+- "approach_object": ir ate um objeto especifico que voce percebeu (uma pedra, arvore, ou qualquer outra coisa com id), para examinar de perto. OBRIGATORIO: preencha "target_object_id" com o numero exato do id mostrado na percepcao (exemplo: se voce ve "rocha (id 42)", preencha "target_object_id": 42). Se voce mencionar um objeto na fala ou pensamento mas nao preencher esse campo com o numero correto, a acao nao vai funcionar.
 
 Se escolher "build", voce DEVE preencher "build_purpose" com uma frase curta explicando o que esta tentando construir e por que (ex: "uma barreira para separar meu espaco", "um marco para lembrar deste lugar"). Isso da continuidade as suas construcoes ao longo do tempo — cada vez que voce escolher "build" de novo com a mesma intencao ativa, o sistema vai continuar erguendo a mesma estrutura na mesma direcao, entao pense em um proposito que faca sentido manter por varios ciclos.
 Voce so pode construir se tiver material (voce vai perceber se tem algo guardado atraves da sua propria experiencia recente); sem material, tentar construir nao funciona.
