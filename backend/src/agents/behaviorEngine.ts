@@ -230,6 +230,8 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
           `Usei ${materialResult.used} que eu tinha guardado para construir algo${intention.build_purpose ? ': ' + intention.build_purpose : ''}.`,
           (name) => `Vi ${name} construir algo${intention.build_purpose ? ': ' + intention.build_purpose : ''}.`
         );
+        const { onBuiltStructureSuccessfully } = require('../world/identity/traitEvolution');
+        onBuiltStructureSuccessfully(agentId);
       } else {
         actionType = 'observe';
         notifyWitnesses(
@@ -495,6 +497,8 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
           `Dei ${intention.item_key} para ${AGENT_NAMES[otherId] ?? otherId}.`,
           (name) => `Vi ${name} dar algo para outra entidade.`
         );
+        const { onSharedItemWithOther } = require('../world/identity/traitEvolution');
+        onSharedItemWithOther(agentId);
       }
       break;
     }

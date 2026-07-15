@@ -96,6 +96,8 @@ export function tickHuntWolfTask(agentId: string): boolean {
 
   if (result.success && result.wolfDied) {
     db.prepare(`UPDATE agent_tasks SET state = 'done', result = 'lobo derrotado', updated_at = ? WHERE agent_id = ?`).run(now, agentId);
+    const { onWonCombat } = require('../identity/traitEvolution');
+    onWonCombat(agentId);
     return false;
   }
 
