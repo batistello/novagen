@@ -84,6 +84,20 @@ export function tickHuntWolfTask(agentId: string): boolean {
     return false;
   }
 
+  const FLEE_HP_THRESHOLD = 25;
+  const currentAgentHp = (db.prepare(`SELECT hp FROM agent_state WHERE agent_id = ?`).get(agentId) as { hp: number }).hp;
+
+  if (currentAgentHp <= FLEE_HP_THRESHOLD) {
+    const dx = self.x - wolf.x;
+    const dy = self.y - wolf.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const fleeX = self.x + (dx / dist) * 15;
+    const fleeY = self.y + (dy / dist) * 15;
+    db.prepare(`UPDATE agent_state SET x = ?, y = ? WHERE agent_id = ?`).run(fleeX, fleeY, agentId);
+    db.prepare(`UPDATE agent_tasks SET state = 'interrupted', result = 'fuga por seguranca fisica', updated_at = ? WHERE agent_id = ?`).run(now, agentId);
+    return false;
+  }
+
   if (wolf.dist > 12) {
     moveAgentTowards(agentId, wolf.x, wolf.y, 6);
     db.prepare(`UPDATE agent_tasks SET state = 'seeking', updated_at = ? WHERE agent_id = ?`).run(now, agentId);

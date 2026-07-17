@@ -25,9 +25,9 @@ export const OBJECT_CATALOG: Record<string, ObjectDefinition> = {
   corda: { key: 'corda', category: 'tool', description: 'corda, feita de fibra', recipe: { fiber: 3 } },
   vara_pesca: { key: 'vara_pesca', category: 'tool', description: 'vara de pesca, permite pescar', recipe: { wood: 2, corda: 1 } },
   harpao: { key: 'harpao', category: 'tool', description: 'harpao, permite pescar peixe grande', recipe: { wood: 2, stone: 1 } },
-  faca: { key: 'faca', category: 'tool', description: 'faca, arma leve', recipe: { wood: 1, stone: 1 }, attack: 4 },
-  machado: { key: 'machado', category: 'tool', description: 'machado, arma pesada', recipe: { wood: 2, stone: 2 }, attack: 7 },
-  lanca: { key: 'lanca', category: 'tool', description: 'lanca, arma de longo alcance', recipe: { wood: 3, stone: 1 }, attack: 6 },
+  faca: { key: 'faca', category: 'tool', description: 'faca, arma leve', recipe: { wood: 1, stone: 1 }, attack: 4.8 },
+  machado: { key: 'machado', category: 'tool', description: 'machado, arma pesada', recipe: { wood: 2, stone: 2 }, attack: 8.4 },
+  lanca: { key: 'lanca', category: 'tool', description: 'lanca, arma de longo alcance', recipe: { wood: 3, stone: 1 }, attack: 7.2 },
   tocha: { key: 'tocha', category: 'tool', description: 'tocha, fonte de luz', recipe: { wood: 1, fiber: 1 } },
   cesto: { key: 'cesto', category: 'tool', description: 'cesto, aumenta capacidade de carga', recipe: { fiber: 4 } },
 
@@ -55,7 +55,7 @@ export function getRecipeFor(key: string) {
 }
 
 export function getAttackValue(key: string | null | undefined): number {
-  if (!key) return 2; // ataque desarmado padrao
+  if (!key) return 2.4; // ataque desarmado padrao (+20%)
   return OBJECT_CATALOG[key]?.attack ?? 2;
 }
 

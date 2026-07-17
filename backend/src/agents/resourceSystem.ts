@@ -251,16 +251,16 @@ export function consumeForBuild(agentId: string): { success: boolean; used?: str
 }
 
 export const WEAPON_ATK: Record<string, number> = {
-  lanca: 6,
-  faca: 4,
-  machado: 7,
+  lanca: 7.2,
+  faca: 4.8,
+  machado: 8.4,
 };
 
 export const ARMOR_DEF: Record<string, number> = {
   couro_curtido: 3,
 };
 
-const BASE_UNARMED_ATK = 2;
+const BASE_UNARMED_ATK = 2.4;
 const MAX_CARRIED_ITEMS = 500;
 const ATTACK_COOLDOWN_MS = 15_000;
 
