@@ -339,7 +339,14 @@ ${visibleAgentIds.length > 0 ? `Se sua intencao for "approach" ou "move_away", d
     const intention = parseIntention(llmResult.raw);
     saveIntention(agentId, intention);
 
-    const plannedTasks = planGoal(intention.goal_type, intention.target_wolf_id ?? null);
+    // AUTO_FALLBACK_HUNT_TASK: se o LLM escolheu hunt_wolf_task mas nao preencheu o id do alvo,
+    // assume o predador mais proximo, em vez de deixar a task nunca comecar.
+    let effectiveHuntTargetId = intention.target_wolf_id ?? null;
+    if (intention.goal_type === 'hunt_wolf_task' && effectiveHuntTargetId == null) {
+      const nearby = getNearbyWolves(state.x, state.y, 60);
+      if (nearby.length > 0) effectiveHuntTargetId = nearby[0].id;
+    }
+    const plannedTasks = planGoal(intention.goal_type, effectiveHuntTargetId);
     plannedTasks.forEach(t => enqueueTask(agentId, t.taskType, t.targetId, t.priority));
 
     if (intention.belief_about_agent_id && intention.belief_text) {

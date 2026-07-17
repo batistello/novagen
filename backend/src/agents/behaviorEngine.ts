@@ -520,13 +520,19 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
       break;
     }
     case 'attack_wolf': {
+      // AUTO_FALLBACK_ATTACK_WOLF: se o LLM escolheu esta acao mas esqueceu de preencher o id,
+      // o mundo assume que ele quis dizer o predador mais proximo, em vez de nao fazer nada.
       const self = loadState(agentId);
-      if (intention.target_wolf_id == null) {
+      const nearbyWolves = getNearbyWolves(self.x, self.y, 60);
+      let effectiveWolfId = intention.target_wolf_id;
+      if (effectiveWolfId == null && nearbyWolves.length > 0) {
+        effectiveWolfId = nearbyWolves[0].id;
+      }
+      if (effectiveWolfId == null) {
         actionType = 'observe';
         break;
       }
-      const nearbyWolves = getNearbyWolves(self.x, self.y, 60);
-      const wolf = nearbyWolves.find(w => w.id === intention.target_wolf_id);
+      const wolf = nearbyWolves.find(w => w.id === effectiveWolfId);
       if (!wolf) {
         actionType = 'observe';
         break;
