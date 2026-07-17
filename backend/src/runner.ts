@@ -162,6 +162,8 @@ async function think(agentId: string) {
     }
 
     const state = loadState(agentId);
+    const personaRow = db.prepare(`SELECT persona_description FROM agent_state WHERE agent_id = ?`).get(agentId) as { persona_description: string | null };
+    const personaText = personaRow.persona_description ? `- ${personaRow.persona_description}` : '';
     const traits = loadTraits(agentId);
     const recentMemory = getRecentMemoryFor(agentId, 15);
     const episodicMemory = getMemoriesByCategory(agentId, 'episodic', 6);
@@ -292,6 +294,7 @@ ${hungerValue < 20 ? '- Voce sente que seu corpo esta ficando fisicamente mais f
 - ${describeHpQualitative(state.hp)}
 ${state.hp < 60 ? '- Sua saude fisica esta comprometida. Se voce estiver perto de algo perigoso (um predador, ou outra entidade hostil), isso pode ser a causa. Verifique ao seu redor: se algo estiver te atacando, voce pode revidar, fugir, ou pedir ajuda a outra entidade proxima — a decisao e sua, mas ficar parado sem reagir e a pior opcao.' : ''}
 ${budgetNote ? '- ' + budgetNote : ''}
+${personaText}
 
 Voce percebe estas entidades:
 ${visibleAgentIds.length > 0 ? othersText : '  (nenhuma entidade percebida por perto)'}
