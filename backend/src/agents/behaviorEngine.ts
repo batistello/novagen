@@ -558,13 +558,25 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
       break;
     }
     case 'attack_rodent': {
+      // AUTO_FALLBACK_ATTACK_RODENT: se o LLM escolheu esta acao mas esqueceu de preencher o id,
+      // o mundo assume o roedor mais proximo, em vez de nao fazer nada.
       const self = loadState(agentId);
-      if (intention.target_rodent_id == null) {
+      const rodents = getAliveRodents();
+      let effectiveRodentId = intention.target_rodent_id;
+      if (effectiveRodentId == null && rodents.length > 0) {
+        let closest = rodents[0];
+        let closestDist = Math.sqrt((closest.x - self.x) ** 2 + (closest.y - self.y) ** 2);
+        rodents.forEach(r => {
+          const d = Math.sqrt((r.x - self.x) ** 2 + (r.y - self.y) ** 2);
+          if (d < closestDist) { closest = r; closestDist = d; }
+        });
+        effectiveRodentId = closest.id;
+      }
+      if (effectiveRodentId == null) {
         actionType = 'observe';
         break;
       }
-      const rodents = getAliveRodents();
-      const rodent = rodents.find(r => r.id === intention.target_rodent_id);
+      const rodent = rodents.find(r => r.id === effectiveRodentId);
       if (!rodent) {
         actionType = 'observe';
         break;
