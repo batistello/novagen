@@ -218,8 +218,28 @@ export function tryAttackWolf(agentId: string, agentX: number, agentY: number, w
     `).run(agentId);
     db.prepare(`UPDATE agent_state SET hunger = MIN(100, hunger + 30) WHERE agent_id = ?`).run(agentId);
     recordDiaryEntry(`${AGENT_NAMES[agentId] ?? agentId} derrotou um predador.`, 'OUTRO');
+
+    const revivedCount = reviveAllDeadAgents();
+    if (revivedCount > 0) {
+      recordDiaryEntry(`A derrota do predador trouxe de volta ${revivedCount} entidade(s) que haviam morrido.`, 'OUTRO');
+    }
+
     return { success: true, wolfDied: true };
   }
 
   return { success: true, wolfDied: false };
+}
+
+
+export function reviveAllDeadAgents(): number {
+  const now = Date.now();
+  const deadAgents = db.prepare(`SELECT agent_id FROM agent_state WHERE status = 'dead'`).all() as { agent_id: string }[];
+  if (deadAgents.length === 0) return 0;
+
+  deadAgents.forEach(a => {
+    db.prepare(`UPDATE agent_state SET status = 'awake', hp = 100, hunger = 50, last_meal_at = ?, last_hp_regen_at = ? WHERE agent_id = ?`)
+      .run(now, now, a.agent_id);
+  });
+
+  return deadAgents.length;
 }

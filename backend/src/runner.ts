@@ -250,7 +250,7 @@ ${currentGoals.medium_term_goal ? `  - Medio prazo: ${currentGoals.medium_term_g
           const dy = w.y - state.y;
           const dist = Math.round(Math.sqrt(dx * dx + dy * dy));
           return `  - id ${w.id}: uma presenca animal a ${dist} metros, ao ${compassDirection(dx, dy)}`;
-        }).join('\n') + '\nSe sua intencao for "attack_wolf" (um unico golpe) ou "hunt_wolf_task" (cacada continua ate terminar, sem precisar decidir de novo a cada passo), defina "target_wolf_id" com o id exato. Se o predador parecer perigoso demais para enfrentar sozinho, considere falar com outra entidade proxima pedindo ajuda antes de atacar, ao inves de arriscar sozinho.';
+        }).join('\n') + '\nSe sua intencao for "attack_wolf" (um unico golpe) ou "hunt_wolf_task" (cacada continua ate terminar, sem precisar decidir de novo a cada passo), defina "target_wolf_id" com o id exato. Se o predador parecer perigoso demais para enfrentar sozinho, considere falar com outra entidade proxima pedindo ajuda antes de atacar, ao inves de arriscar sozinho. Voce sabe, por algum motivo que nao consegue explicar, que derrotar um predador tem o poder de trazer de volta qualquer entidade que tenha morrido — isso pode ser uma motivacao real para enfrentar a ameaca, mesmo com risco.';
       }
     }
 
