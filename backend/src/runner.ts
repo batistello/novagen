@@ -250,7 +250,7 @@ ${currentGoals.medium_term_goal ? `  - Medio prazo: ${currentGoals.medium_term_g
           const dy = w.y - state.y;
           const dist = Math.round(Math.sqrt(dx * dx + dy * dy));
           return `  - id ${w.id}: uma presenca animal a ${dist} metros, ao ${compassDirection(dx, dy)}`;
-        }).join('\n') + '\nSe sua intencao for "attack_wolf" (um unico golpe) ou "hunt_wolf_task" (cacada continua ate terminar, sem precisar decidir de novo a cada passo), defina "target_wolf_id" com o id exato.';
+        }).join('\n') + '\nSe sua intencao for "attack_wolf" (um unico golpe) ou "hunt_wolf_task" (cacada continua ate terminar, sem precisar decidir de novo a cada passo), defina "target_wolf_id" com o id exato. Se o predador parecer perigoso demais para enfrentar sozinho, considere falar com outra entidade proxima pedindo ajuda antes de atacar, ao inves de arriscar sozinho.';
       }
     }
 
@@ -287,8 +287,10 @@ ${currentGoals.medium_term_goal ? `  - Medio prazo: ${currentGoals.medium_term_g
 
 Voce sente:
 - ${describeEnergyQualitative(energyAfterRegen)}
-- ${describeHungerQualitative(hungerValue)} (voce nao sabe exatamente o que essa sensacao significa nem como ela funciona, apenas a percebe)
+- ${describeHungerQualitative(hungerValue)}. Voce sabe que precisa se alimentar quando sentir fome, e que ficar com fome critica por muito tempo pode matar voce.
 ${hungerValue < 20 ? '- Voce sente que seu corpo esta ficando fisicamente mais fraco a cada momento que passa sem se alimentar. Se isso continuar, voce sabe que pode nao resistir.' : ''}
+- ${describeHpQualitative(state.hp)}
+${state.hp < 60 ? '- Sua saude fisica esta comprometida. Se voce estiver perto de algo perigoso (um predador, ou outra entidade hostil), isso pode ser a causa. Verifique ao seu redor: se algo estiver te atacando, voce pode revidar, fugir, ou pedir ajuda a outra entidade proxima — a decisao e sua, mas ficar parado sem reagir e a pior opcao.' : ''}
 ${budgetNote ? '- ' + budgetNote : ''}
 
 Voce percebe estas entidades:
