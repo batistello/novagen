@@ -270,11 +270,15 @@ function renderWolves(wolves) {
       }
       wolfLayer.addChild(sprite);
       wolfSprites[w.id] = sprite;
+    }
+
+    if (!wolfHpLabels[w.id]) {
       const hpLabel = new PIXI.Text('', {
         fontFamily: 'Arial', fontSize: 11, fill: 0xffffff, fontWeight: 'bold',
         stroke: 0x000000, strokeThickness: 3,
       });
       hpLabel.anchor.set(0.5, 1);
+      hpLabel.alpha = 0.7;
       hpLabel.x = 0;
       hpLabel.y = -18;
       sprite.addChild(hpLabel);
