@@ -227,6 +227,8 @@ function renderRodents(rodents) {
 
 const wolfSprites = {};
 
+const wolfHpLabels = {};
+
 function renderWolves(wolves) {
   const currentIds = new Set(wolves.map(w => w.id));
 
@@ -268,6 +270,15 @@ function renderWolves(wolves) {
       }
       wolfLayer.addChild(sprite);
       wolfSprites[w.id] = sprite;
+      const hpLabel = new PIXI.Text('', {
+        fontFamily: 'Arial', fontSize: 11, fill: 0xffffff, fontWeight: 'bold',
+        stroke: 0x000000, strokeThickness: 3,
+      });
+      hpLabel.anchor.set(0.5, 1);
+      hpLabel.x = 0;
+      hpLabel.y = -18;
+      sprite.addChild(hpLabel);
+      wolfHpLabels[w.id] = hpLabel;
     }
 
     sprite.x = sx;
@@ -276,6 +287,7 @@ function renderWolves(wolves) {
 
     const hpRatio = w.hp / (w.max_hp || 20);
     sprite.alpha = 0.5 + hpRatio * 0.5;
+    if (wolfHpLabels[w.id]) { wolfHpLabels[w.id].text = `${Math.round(w.hp)}/${Math.round(w.max_hp || 20)}`; }
   });
 }
 
