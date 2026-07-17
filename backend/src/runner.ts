@@ -40,7 +40,7 @@ const BEHAVIOR_TICK_MS = 3000;
 
 function loadState(agentId: string) {
   return db.prepare(`SELECT * FROM agent_state WHERE agent_id = ?`).get(agentId) as {
-    agent_id: string; energy: number; hunger: number; x: number; y: number; emotion: string; status: string; last_tick_at: number;
+    agent_id: string; energy: number; hunger: number; hp: number; x: number; y: number; emotion: string; status: string; last_tick_at: number;
   };
 }
 
