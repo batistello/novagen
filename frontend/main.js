@@ -366,15 +366,51 @@ function renderWorldObjects(objects) {
         return;
       }
 
-      if (obj.type === 'wood_piece' || obj.type === 'stone_piece') {
-        const isWood = obj.type === 'wood_piece';
-        const piece = new PIXI.Graphics();
-        piece.beginFill(isWood ? 0x8b5a2b : 0x7f8c8d, 0.9).lineStyle(1, isWood ? 0x5a3a1a : 0x4d5656);
-        piece.drawRoundedRect(-10, -5, 20, 10, 2);
-        piece.endFill();
-        piece.x = sx;
-        piece.y = sy;
-        worldLayer.addChild(piece);
+      if (obj.type === 'wood_piece') {
+        const wood = new PIXI.Text('🪵', { fontSize: 16 });
+        wood.anchor.set(0.5);
+        wood.x = sx;
+        wood.y = sy;
+        worldLayer.addChild(wood);
+        return;
+      }
+      if (obj.type === 'stone_piece') {
+        const stone = new PIXI.Text('🪨', { fontSize: 14 });
+        stone.anchor.set(0.5);
+        stone.x = sx;
+        stone.y = sy;
+        worldLayer.addChild(stone);
+        return;
+      }
+      if (obj.type === 'fence') {
+        const fence = new PIXI.Text('🪵', { fontSize: 18 });
+        fence.anchor.set(0.5);
+        fence.x = sx;
+        fence.y = sy;
+        worldLayer.addChild(fence);
+        return;
+      }
+      if (obj.type === 'stone_wall') {
+        const wallContainer = new PIXI.Container();
+        const positions = [[-8, 0], [0, -2], [8, 1]];
+        positions.forEach(([dx, dy]) => {
+          const pebble = new PIXI.Text('🪨', { fontSize: 13 });
+          pebble.anchor.set(0.5);
+          pebble.x = dx;
+          pebble.y = dy;
+          wallContainer.addChild(pebble);
+        });
+        wallContainer.x = sx;
+        wallContainer.y = sy;
+        worldLayer.addChild(wallContainer);
+        return;
+      }
+      if (obj.type === 'stone_roof') {
+        const roof = new PIXI.Text('🏚️', { fontSize: 18 });
+        roof.anchor.set(0.5);
+        roof.x = sx;
+        roof.y = sy;
+        worldLayer.addChild(roof);
         return;
       }
       const category = shapeCategory(obj.type);
