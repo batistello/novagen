@@ -277,10 +277,13 @@ function renderWolves(wolves) {
         fontFamily: 'Arial', fontSize: 11, fill: 0xffffff, fontWeight: 'bold',
         stroke: 0x000000, strokeThickness: 3,
       });
+      const wolfScaleY = sprite.scale.y || 1;
+      const wolfScaleX = sprite.scale.x || 1;
       hpLabel.anchor.set(0.5, 1);
       hpLabel.alpha = 0.7;
       hpLabel.x = 0;
-      hpLabel.y = -18;
+      hpLabel.y = -18 / wolfScaleY;
+      hpLabel.scale.set(1 / wolfScaleX, 1 / wolfScaleY);
       sprite.addChild(hpLabel);
       wolfHpLabels[w.id] = hpLabel;
     }
