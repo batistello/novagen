@@ -164,6 +164,8 @@ const TERMINAL_ACTION_TYPES = new Set([
   'attack_rodent_success', 'attack_rodent_failed',
   'approach_object_success',
   'create_object',
+  'build_failed_no_material',
+  'build_blocked_self',
 ]);
 
 export function behaviorTick(agentId: string): { acted: boolean; goalType: string | null; terminal: boolean } {
@@ -250,7 +252,7 @@ export function behaviorTick(agentId: string): { acted: boolean; goalType: strin
         const { onBuiltStructureSuccessfully } = require('../world/identity/traitEvolution');
         onBuiltStructureSuccessfully(agentId);
       } else {
-        actionType = 'observe';
+        actionType = 'build_failed_no_material';
         notifyWitnesses(
           agentId, self.x, self.y,
           'Tentei construir algo, mas nao tinha nenhum material guardado.',
