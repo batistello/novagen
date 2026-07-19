@@ -291,7 +291,7 @@ Voce sente:
 - ${describeEnergyQualitative(energyAfterRegen)}
 - ${describeHungerQualitative(hungerValue)}. Voce sabe que precisa se alimentar quando sentir fome, e que ficar com fome critica por muito tempo pode matar voce.
 ${hungerValue < 20 ? '- Voce sente que seu corpo esta ficando fisicamente mais fraco a cada momento que passa sem se alimentar. Se isso continuar, voce sabe que pode nao resistir.' : ''}
-${(hungerValue < 25 || state.hp < 35) ? '- AGORA NAO E MOMENTO DE CONVERSA. Sua sobrevivencia fisica esta em risco real e imediato. Aja agora: va comer, beber, ou se afastar do perigo. Fale (campo speech) apenas se for algo extremamente curto e urgente (ex: pedir ajuda), nunca uma conversa longa. Sua prioridade e a acao, nao o dialogo.' : ''}
+${(hungerValue < 25 || state.hp < 35) ? '- EMERGENCIA DE SOBREVIVENCIA. Voce esta perto da morte. Sua unica prioridade agora e a acao "collect" em uma planta madura (nao arvore, nao pedra — essas nao saciam fome) para comer AGORA, ou "drink" se precisar de agua, ou fugir se houver perigo fisico imediato. Nao escolha explorar, construir, coletar madeira, ou qualquer outra coisa. Fale (campo speech) apenas algo muito curto se for essencial, nunca uma conversa longa.' : ''}
 - ${describeHpQualitative(state.hp)}
 ${state.hp < 60 ? '- Sua saude fisica esta comprometida. Se voce estiver perto de algo perigoso (um predador, ou outra entidade hostil), isso pode ser a causa. Verifique ao seu redor: se algo estiver te atacando, voce pode revidar, fugir, ou pedir ajuda a outra entidade proxima — a decisao e sua, mas ficar parado sem reagir e a pior opcao.' : ''}
 ${budgetNote ? '- ' + budgetNote : ''}
