@@ -175,6 +175,32 @@ export function tickWolves() {
           }
         } else {
           markIntentionInterrupted(target.agent_id);
+
+          const AUTO_FIGHT_HP_THRESHOLD = 25;
+          if (newHp > AUTO_FIGHT_HP_THRESHOLD) {
+            const { getEquipment, WEAPON_ATK } = require('./resourceSystem');
+            const equip = getEquipment(target.agent_id);
+            const agentAtk = equip.hand && WEAPON_ATK[equip.hand] != null ? WEAPON_ATK[equip.hand] : 2.4;
+            const wolfNewHp = Math.max(0, wolf.hp - agentAtk);
+            const wolfNewStatus = wolfNewHp <= 0 ? 'dead' : 'alive';
+            db.prepare(`UPDATE wolves SET hp = ?, status = ? WHERE id = ?`).run(wolfNewHp, wolfNewStatus, wolf.id);
+
+            if (wolfNewStatus === 'dead') {
+              db.prepare(`
+                INSERT INTO agent_items (agent_id, item_key, quantity) VALUES (?, 'couro', 1)
+                ON CONFLICT(agent_id, item_key) DO UPDATE SET quantity = quantity + 1
+              `).run(target.agent_id);
+              db.prepare(`UPDATE agent_state SET hunger = MIN(100, hunger + 30) WHERE agent_id = ?`).run(target.agent_id);
+              recordDiaryEntry(`${AGENT_NAMES[target.agent_id] ?? target.agent_id} revidou e derrotou o predador que o atacava.`, 'CONFLITO');
+            }
+          } else {
+            const dx = target.x - wolf.x;
+            const dy = target.y - wolf.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const fleeX = target.x + (dx / dist) * 15;
+            const fleeY = target.y + (dy / dist) * 15;
+            db.prepare(`UPDATE agent_state SET x = ?, y = ? WHERE agent_id = ?`).run(fleeX, fleeY, target.agent_id);
+          }
         }
       }
       return;
